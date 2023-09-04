@@ -1,13 +1,11 @@
 #include "json.hpp"
 #include <iostream>
-#include <fstream>
-#include <sstream>
 
 using json = nlohmann::json;
 
 // Counts the number of branches in the JSON representation of a bril program.
 
-int main(int argc, char* argv[]){
+int main(){
 
   // pipes in json as input
   json data;
