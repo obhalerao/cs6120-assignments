@@ -12,7 +12,7 @@ std::pair<json, bool> run_dce_pass(json& blk){
   std::set<std::string> total_args;
   for(auto instr: blk){
     if(instr.contains("args")){
-      for(auto arg: instr["args"]) total_args.insert(arg);
+      for(std::string arg: instr["args"]) total_args.insert(arg);
     }
   }
   for(auto instr: blk){
@@ -34,21 +34,19 @@ int main(){
   json prog;
   std::cin >> prog;
 
+  json nprog;
+
   for(auto func : prog["functions"]){
     bool changed = false;
-    std::vector<json> blocks = form_blocks(func["instrs"]);
-    json new_lst(json::value_t::array);
-    for(auto blk: blocks){
-      json new_blk = blk;
-      while(true){
-        auto result = run_dce_pass(new_blk);
-        if(!result.second) break;
-        new_blk = result.first;
-      }
-      new_lst.insert(new_lst.end(), new_blk.begin(), new_blk.end());
+    json new_instrs = func["instrs"];
+    while(true){
+      auto result = run_dce_pass(new_instrs);
+      if(!result.second) break;
+      new_instrs = result.first;
     }
-    func["instrs"] = new_lst;
+    func["instrs"] = new_instrs;
+    nprog["functions"].push_back(func);
   }
 
-  std::cout << prog << std::endl;
+  std::cout << nprog << std::endl;
 }
