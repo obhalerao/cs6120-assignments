@@ -357,3 +357,12 @@ json lvn_pass(json& blk){
   }
   return new_instrs;
 }
+
+std::string find_suffix(json instrs) {
+  size_t max_len = 1;
+  for (auto instr : instrs) {
+    std::string dest = instr["dest"];
+    max_len = std::max(dest.length(), max_len);
+  }
+  return "_unclobber" + std::string("_", max_len + 1);
+}

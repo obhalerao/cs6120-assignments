@@ -10,6 +10,7 @@ int main(){
 
   for(auto func: prog["functions"]){
     json instrs = func["instrs"];
+    std::string suffix = find_suffix(instrs);
     std::vector<json> blocks = form_blocks(instrs);
     for(int i = 0; i < blocks.size(); i++){
       json new_block = lvn_pass(blocks[i]);
