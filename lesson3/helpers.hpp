@@ -36,6 +36,7 @@ enum operation_t
   b_fle,
   b_fgt,
   b_fge,
+  b_call,
   b_other
 };
 
@@ -70,6 +71,7 @@ std::unordered_map<std::string, operation_t> str2op = {
   {"fgt", b_fgt},
   {"fle", b_fle},
   {"fge", b_fge},
+  {"call", b_call},
   {"const", b_const},
 };
 
@@ -215,7 +217,7 @@ std::pair<json, bool> local_dce_pass(json& blk){
   return std::make_pair(new_json, changed);
 }
 
-json lvn_pass(json& blk){
+json lvn_pass(json& blk, std::string var_suffix){
   // Two unordered maps: one from instrs to numbers, and one from numbers to pair<instr, queue>
   // We also want one from variable names to numbers.
   // replace with custom hash once i figure out what's going on
@@ -224,6 +226,8 @@ json lvn_pass(json& blk){
   std::vector<std::pair<Value, std::queue<std::string>>> table;
 
   json new_instrs;
+
+  int counter = 0;
 
   for(auto ins: blk){
     if(ins.contains("label")){
@@ -250,7 +254,7 @@ json lvn_pass(json& blk){
     Value current_value {b_other, b_unk, -1, -1};
 
     // update lvn table if op is recognized
-    if(op != b_other && op != b_const){
+    if(op != b_other && op != b_const && op != b_call){
 
       current_value.op = op;
       if(ins["type"].type_name() != "string"){
@@ -305,6 +309,21 @@ json lvn_pass(json& blk){
           q.push(ins["dest"]);
           table.push_back(std::make_pair(current_value, q));
         }
+      }
+    }else if(op == b_call && ins.contains("dest")){
+      std::string dest = ins["dest"];
+      if(var2num.find(dest) != var2num.end()){
+        json tmp_instr;
+        std::string tmp_name = dest + var_suffix + std::to_string(counter);
+        counter++;
+        tmp_instr["op"] = "id";
+        tmp_instr["args"].push_back(dest);
+        tmp_instr["dest"] = tmp_name;
+        tmp_instr["type"] = ins["type"];
+        new_instrs.push_back(tmp_instr);
+        var2num[tmp_name] = var2num[dest];
+        table[var2num["dest"]].second.push(tmp_name);
+        var2num.erase(dest);
       }
     }
 
@@ -361,8 +380,10 @@ json lvn_pass(json& blk){
 std::string find_suffix(json instrs) {
   size_t max_len = 1;
   for (auto instr : instrs) {
-    std::string dest = instr["dest"];
-    max_len = std::max(dest.length(), max_len);
+    if(instr.contains("dest")){
+      std::string dest = instr["dest"];
+      max_len = std::max(dest.length(), max_len);
+    }
   }
   return "_unclobber" + std::string("_", max_len + 1);
 }
