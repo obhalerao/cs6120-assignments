@@ -1,31 +1,9 @@
-#include "json.hpp"
+#include "helpers.hpp"
 #include <iostream>
 #include <set>
 #include <vector>
 
 using json = nlohmann::json;
-
-std::pair<json, bool> run_dce_pass(json& blk){
-  json new_json;
-  bool changed = false;
-  std::set<std::string> total_args;
-  for(auto instr: blk){
-    if(instr.contains("args")){
-      for(std::string arg: instr["args"]) total_args.insert(arg);
-    }
-  }
-  for(auto instr: blk){
-    if(instr.contains("dest")){
-      std::string dest = instr["dest"];
-      if(total_args.find(dest) == total_args.end()){
-        changed = true;
-        continue;
-      }
-    }
-    new_json.push_back(instr);
-  }
-  return std::make_pair(new_json, changed);
-}
 
 int main(){
 
@@ -38,12 +16,16 @@ int main(){
   for(auto func : prog["functions"]){
     bool changed = false;
     json new_instrs = func["instrs"];
+    std::vector<json> blocks = form_blocks(new_instrs);
     while(true){
-      auto result = run_dce_pass(new_instrs);
+      auto result = global_dce_pass(blocks);
       if(!result.second) break;
-      new_instrs = result.first;
+      blocks = result.first;
     }
-    func["instrs"] = new_instrs;
+    func["instrs"] = json::array();
+    for(auto blk: blocks){
+      func["instrs"].insert(func["instrs"].end(), blk.begin(), blk.end());
+    }
     nprog["functions"].push_back(func);
   }
 
