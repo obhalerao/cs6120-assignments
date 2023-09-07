@@ -1,5 +1,10 @@
 .vscode/*
+build/
+.idea/
+cmake-build-debug/
 CMakeFiles/
 cmake_install.*
 CMakeCache.*
 Makefile
+
+*.csv
