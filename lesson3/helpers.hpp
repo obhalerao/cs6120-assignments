@@ -200,25 +200,32 @@ std::pair<std::vector<json>, bool> global_dce_pass(std::vector<json>& blocks){
 std::pair<json, bool> local_dce_pass(json& blk){
   bool changed = false;
   json new_json;
-  std::unordered_set<std::string> dead_vars;
-  for(auto i = blk.rbegin(); i != blk.rend(); i++){
+  std::unordered_map<std::string, int> instr_map;
+  std::unordered_set<int> to_delete;
+  int counter = 0;
+  for(auto i = blk.begin(); i != blk.end(); i++, counter++){
     json cur = *i;
-    if(!(cur.contains("dest") && dead_vars.find(cur["dest"]) != dead_vars.end())){
-      new_json.push_back(cur);
-    }else{
-      changed = true;
-    }
-    if(cur.contains("dest") && dead_vars.find(cur["dest"]) == dead_vars.end()){
-      dead_vars.insert(cur["dest"]);
-    }
-
     if(cur.contains("args")){
       for(auto arg: cur["args"]){
-        dead_vars.erase(arg);
+        instr_map.erase(arg);
       }
     }
+
+    if(cur.contains("dest") && instr_map.find(cur["dest"]) != instr_map.end()){
+      to_delete.insert(instr_map[cur["dest"]]);
+    }
+
+    if(cur.contains("dest") && cur["op"] != "call"){
+      instr_map[cur["dest"]] = counter;
+    }
   }
-  std::reverse(new_json.begin(), new_json.end());
+  counter = 0;
+  changed = !to_delete.empty();
+  for(auto i = blk.begin(); i != blk.end(); i++, counter++){
+    if(to_delete.find(counter) == to_delete.end()){
+      new_json.push_back(*i);
+    }
+  }
   return std::make_pair(new_json, changed);
 }
 
