@@ -17,10 +17,13 @@ int main(){
     bool changed = false;
     json new_instrs = func["instrs"];
     std::vector<json> blocks = form_blocks(new_instrs);
-    while(true){
-      auto result = global_dce_pass(blocks);
-      if(!result.second) break;
-      blocks = result.first;
+    func["instrs"] = json::array();
+    for(int i = 0; i < blocks.size(); i++){
+      while(true){
+        auto res = local_dce_pass(blocks[i]);
+        blocks[i] = res.first;
+        if(!res.second) break;
+      }
     }
     func["instrs"] = json::array();
     for(auto blk: blocks){
