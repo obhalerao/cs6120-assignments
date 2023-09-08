@@ -81,6 +81,11 @@ std::unordered_map<std::string, type_t> str2type = {
   {"float", b_float}
 };
 
+// apparently floating point ops are commutative but not associative
+std::unordered_set<operation_t> commutatives( 
+  {b_add, b_mul, b_eq, b_and, b_or, b_fadd, b_fmul, b_feq}
+);
+
 // If op represents a 1-arg operation, val2 is -1.
 // If op is const, val1 refers to the value stored in the const.
 struct Value{
@@ -270,6 +275,12 @@ json lvn_pass(json& blk, std::string var_suffix){
       }else{
         //2-arg operations
         current_value.val2 = var2num[ins["args"][1]];
+      }
+
+      if(commutatives.find(op) != commutatives.end()){
+        if(current_value.val1 > current_value.val2){
+          std::swap(current_value.val1, current_value.val2);
+        }
       }
       
       if(value2num.find(current_value) != value2num.end()){
