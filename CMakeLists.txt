@@ -15,17 +15,3 @@ add_executable(l2 "${PROJECT_SOURCE_DIR}/lesson2/count_branches.cpp")
 add_executable(l3_tdce "${PROJECT_SOURCE_DIR}/lesson3/tdce.cpp")
 add_executable(l3_lvn "${PROJECT_SOURCE_DIR}/lesson3/lvn.cpp")
 add_executable(l4_dataflow "${PROJECT_SOURCE_DIR}/lesson4/main.cpp")
-
-# add include directories
-target_include_directories(l2 PUBLIC
-                          "${PROJECT_SOURCE_DIR}/include"
-                          )
-target_include_directories(l3_tdce PUBLIC
-                          "${PROJECT_SOURCE_DIR}/include"
-                          )
-target_include_directories(l3_lvn PUBLIC
-                          "${PROJECT_SOURCE_DIR}/include"
-                          )
-target_include_directories(l4_dataflow PUBLIC
-                          "${PROJECT_SOURCE_DIR}/include"
-                          )

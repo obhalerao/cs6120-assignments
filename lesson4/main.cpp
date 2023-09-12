@@ -2,5 +2,9 @@
 #include <cstdio>
 
 int main() {
-    printf("yo!");
+    json prog;
+    std::cin >> prog;
+    for(auto func : prog["functions"]){
+        CFG cfg(func["instrs"]);
+    }
 }
