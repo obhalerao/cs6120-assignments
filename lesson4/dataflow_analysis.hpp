@@ -4,177 +4,189 @@
 #include "json.hpp"
 #include "helpers.cpp"
 #include<unordered_map>
+#include<unordered_set>
 
 using json = nlohmann::json;
 
 class CFGNode {
 public:
     json instr;
-    std::vector<CFGNode *> preds;
-    std::vector<CFGNode *> succs;
+    std::vector<int> preds;
+    std::vector<int> succs;
+    CFGNode() = default;
 
-    CFGNode(json instr) {
-        this->instr = std::move(instr);
+    CFGNode(json instr) : instr(instr) {
+    }
+
+    CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs) {
     }
 };
 
 class CFGBlock {
 public:
-    std::vector<CFGNode *> nodes;
-    std::vector<CFGBlock *> preds;
-    std::vector<CFGBlock *> succs;
+    std::vector<int> nodes;
+    std::vector<int> preds;
+    std::vector<int> succs;
     std::string blockName;
 
-    CFGBlock(std::string blockName, std::vector<CFGNode *> nodes) {
-        this->blockName = blockName;
-        this->nodes = nodes;
+    CFGBlock(std::string blockName, std::vector<int> nodes) : blockName(blockName), nodes(nodes) {
+    }
+
+    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName){
     }
 
 };
 
 class CFG {
 public:
+    std::vector<CFGNode> nodes;
+    std::vector<CFGBlock> blocks;
+    std::unordered_map<std::string, int> blockOfString;
+
     CFG(json& instrs) {
         std::string prefix = "anti_clobber_label";
         PrefixCounter pc(prefix);
         std::string firstLabel = pc.generate();
 
-        std::vector<CFGNode> nodes; // all instructions other than labels
+        // std::vector<CFGNode> nodes; // all instructions other than labels
         std::vector<uint32_t> blockStarts;  // first instruction in ith block
         std::vector<std::string> labels; // label for ith block
-        std::vector<std::string> jumpLabels;
 
         blockStarts.push_back(0);
         labels.push_back(firstLabel);
 
-        bool unreachable = false;
+        bool unreachable = false;  // TODO: put these blocks back in and leave them disconnected
 
         for (auto instr : instrs) {
             if (unreachable && !instr.contains("label")) continue;
 
             unreachable = false;
             if (instr.contains("label")) {
+                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size())
+                    nodes.emplace_back(json({{"op", "nop"}})); // make this block non-empty
                 blockStarts.push_back(nodes.size());
                 labels.push_back(instr["label"]);
             } else if (instr.contains("op") && instr["op"] == "jmp" || instr["op"] == "br") {
                 nodes.emplace_back(instr);
-                unreachable = true;
+                unreachable = true; // instructions immediately after an unconditional jump, or a branch with two labels, are unreachable
             } else {
                 nodes.emplace_back(instr);
             }
         }
 
-//        printf("labels: ");
-//        for (std::string &s : labels) {
-//            printf("%s, ", s.c_str());
-//        }
-//        printf("\n");
-//
-//        printf("block starts: ");
-//        for (int i : blockStarts) {
-//            printf("%d, ", i);
-//        }
-//
-//        printf("\n");
-//
-//        printf("instrs:\n");
-//        for (auto &node : nodes) {
-//            printf("%s\n", node.instr.dump(2).c_str());
-//        }
-
-        numNodes = nodes.size();
-        nodeArr = (CFGNode *) malloc(sizeof(CFGNode) * nodes.size());
-        std::copy(nodes.begin(), nodes.end(), nodeArr);
-
-        std::vector<CFGBlock> blocks;
-
         for (int i = 0; i < blockStarts.size(); i++) {
-            uint32_t end = (i < blockStarts.size() - 1) ? blockStarts[i + 1] : numNodes;
-            for (uint32_t j = blockStarts[i] + 1; j < end; j++) {
-                nodeArr[j].preds.push_back(&nodeArr[j - 1]);
+            uint32_t end = (i < blockStarts.size() - 1) ? blockStarts[i + 1] : nodes.size();
+            for (uint32_t j = blockStarts[i]; j < end - 1; j++) {
+                nodes[j + 1].preds.push_back(j);
             }
             for (uint32_t j = blockStarts[i]; j < end - 1; j++) {
-                nodeArr[j].succs.push_back(&nodeArr[j + 1]);
+                nodes[j].succs.push_back(j + 1);
             }
 
-            std::vector<CFGNode *> nodePtrs;
+            std::vector<int> nodePtrs;
             for (uint32_t j = blockStarts[i]; j < end; j++) {
-                nodePtrs.push_back(&nodeArr[j]);
+                nodePtrs.push_back(j);
             }
-
-            CFGBlock block(labels[i], nodePtrs);
-            blocks.push_back(block);
+            blocks.emplace_back(labels[i], nodePtrs);
         }
 
-        numBlocks = blocks.size();
-        blockArr = (CFGBlock *) malloc(sizeof(CFGBlock) * numBlocks);
-        std::copy(blocks.begin(), blocks.end(), blockArr);
+        auto numBlocks = blocks.size();
 
         for (int i = 0; i < numBlocks; i++) {
-            
+            blockOfString[blocks[i].blockName] = i;
         }
 
+        for (int i = 0; i < numBlocks; i++) {
+            auto block = blocks[i];
+            json instr = nodes[block.nodes.back()].instr;
+            if (instr.contains("op") && (instr["op"] == "jmp" || instr["op"] == "br")) {
+                for (std::string label : instr["labels"]) {
+                    block.succs.push_back(blockOfString[label]);
+                    blocks[blockOfString[label]].preds.push_back(i);
+                }
+            }
+        }
 
+        for (auto block : blocks) {
+            std::vector<int> &blockPreds = nodes[block.nodes.front()].preds;
+            for (auto predBlockPtr : block.preds) {
+                blockPreds.push_back((blocks[predBlockPtr]).nodes.back());
+            }
+
+            std::vector<int> &blockSuccs = nodes[block.nodes.back()].succs;
+            for (auto succBlockPtr : block.succs) {
+                blockSuccs.push_back((blocks[succBlockPtr]).nodes.front());
+            }
+        }
 
     }
 
-private:
-    CFGNode *nodeArr;
-    uint32_t numNodes;
-    CFGBlock *blockArr;
-    uint32_t numBlocks;
+    ~CFG() {
+    }
+
+    json toInstrs() {
+        json instrs;
+        for (auto block : blocks) {
+            json inner;
+            inner["label"] = block.blockName;
+            instrs.push_back(inner);
+            for (auto nodePtr : block.nodes) {
+                instrs.emplace_back(nodes[nodePtr].instr);
+            }
+        }
+        return instrs;
+    };
 };
 
 template<typename T>
-class ForwardDataflowBase {
+class ForwardDataflowBaseSingleton {
 public:
-    static T copy(T t);
+    virtual T makeTop() = 0;
 
-    static T makeTop();
+    virtual std::pair<T, bool> inCalc(const CFGNode &node, const std::vector<T> &outs, const T &oldIn) = 0;
 
-    static std::pair<T, bool> inCalc(const CFGNode &node, const std::vector<T> &outs, const T &oldIn);
-
-    static std::pair<T, bool> outCalc(const CFGNode &node, const T &inNew, const T &outOld);
+    virtual std::pair<T, bool> outCalc(const CFGNode &node, const T &inNew, const T &outOld) = 0;
 };
 
 template<class DataFlowImpl, typename K>
 class DataFlowAnalysis {
 public:
-    CFG cfg;
-    std::unordered_map<CFGNode *, K> nodeIn;
-    std::unordered_map<CFGNode *, K> nodeOut;
+    CFG *cfg;
+    std::vector<K> nodeIn;
+    std::vector<K> nodeOut;
+    DataFlowImpl factory;
 
-    explicit DataFlowAnalysis(const CFG& cfg) {
-        static_assert(std::is_base_of<ForwardDataflowBase<K>, DataFlowImpl>::value, "derived from wrong class??");
-        this->cfg = cfg;
+    explicit DataFlowAnalysis(CFG *cfg) : factory(), cfg(cfg) {
+        static_assert(std::is_base_of<ForwardDataflowBaseSingleton<K>, DataFlowImpl>::value, "derived from wrong class??");
     }
 
-    void forwardAnalysis() {
+    // doesn't use a worklist, just checks everyone lol
+    void naiveForwardAnalysis() {
         nodeIn.clear();
         nodeOut.clear();
-        for (auto nodePtr : cfg.nodes) {
-            nodeIn[nodePtr] = DataFlowImpl::makeTop();
-            nodeOut[nodePtr] = DataFlowImpl::makeTop();
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            nodeIn.push_back(factory.makeTop());
+            nodeOut.push_back(factory.makeTop());
         }
 
         bool changed = true;
         uint32_t count = 0;
         while (changed) {
             changed = false;
-            for (auto nodePtr: cfg.nodes) {
+            for (int i = 0; i < cfg->nodes.size(); i++) {
                 count++;
-                auto node = *nodePtr;
+                auto node = cfg->nodes[i];
 
                 std::vector<K> preds;
                 for (auto predNodePtr: node.preds) {
                     preds.push_back(nodeOut[predNodePtr]);
                 }
 
-                auto inRes = DataFlowImpl::inCalc(node, preds, nodeIn[nodePtr]);
-                auto outRes = DataFlowImpl::outCalc(node, inRes.first, nodeOut[nodePtr]);
+                auto inRes = factory.inCalc(node, preds, nodeIn[i]);
+                auto outRes = factory.outCalc(node, inRes.first, nodeOut[i]);
 
-                nodeIn[nodePtr] = inRes.first;
-                nodeOut[nodePtr] = outRes.first;
+                nodeIn[i] = inRes.first;
+                nodeOut[i] = outRes.first;
                 if (!inRes.second || !outRes.second) {
                     changed = true;
                 }
