@@ -31,11 +31,9 @@ public:
     std::vector<int> succs;
     std::string blockName;
 
-    CFGBlock(std::string blockName, std::vector<int> nodes) : blockName(blockName), nodes(nodes) {
-    }
+    CFGBlock(std::string blockName, std::vector<int> nodes) : blockName(blockName), nodes(nodes) {}
 
-    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName){
-    }
+    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName){}
 
 };
 
@@ -51,14 +49,14 @@ public:
         PrefixCounter pc(prefix);
         std::string firstLabel = pc.generate();
 
-        // std::vector<CFGNode> nodes; // all instructions other than labels
         std::vector<uint32_t> blockStarts;  // first instruction in ith block
         std::vector<std::string> labels; // label for ith block
 
         blockStarts.push_back(0);
         labels.push_back(firstLabel);
 
-        bool unreachable = false;  // TODO: put these blocks back in and leave them disconnected
+        // TODO: end block on ret instruction, maybe always put a nop at the end of the function and point rets there?
+        bool unreachable = false;  // TODO: decide whether to put these blocks back in and leave them disconnected from the rest of the function
 
         for (auto instr : instrs) {
             if (unreachable && !instr.contains("label")) continue;
@@ -77,11 +75,13 @@ public:
             }
         }
         if (blockStarts.back() == nodes.size()) {
-            nodes.emplace_back(json({{"op", "nop"}}));
+            nodes.emplace_back(json({{"op", "nop"}})); // make last block non-empty
         }
 
-        for (int i = 0; i < blockStarts.size(); i++) {
-            uint32_t end = (i < blockStarts.size() - 1) ? blockStarts[i + 1] : nodes.size();
+        auto numBlocks = blockStarts.size();
+
+        for (int i = 0; i < numBlocks; i++) {
+            uint32_t end = (i < numBlocks - 1) ? blockStarts[i + 1] : nodes.size();
             for (uint32_t j = blockStarts[i]; j < end - 1; j++) {
                 nodes[j + 1].preds.push_back(j);
                 nodes[j].succs.push_back(j + 1);
@@ -94,12 +94,10 @@ public:
             blocks.emplace_back(labels[i], nodePtrs);
         }
 
-        auto numBlocks = blocks.size();
-
+        // populate predecessors and successors in neighboring blocks
         for (int i = 0; i < numBlocks; i++) {
             blockOfString[blocks[i].blockName] = i;
         }
-
         for (int i = 0; i < numBlocks; i++) {
             auto &block = blocks[i];
             json instr = nodes[block.nodes.back()].instr;
@@ -114,7 +112,6 @@ public:
                 blocks[i + 1].preds.push_back(i);
             }
         }
-
         for (auto block : blocks) {
             std::vector<int> &blockPreds = nodes[block.nodes.front()].preds;
             for (auto predBlockPtr : block.preds) {
@@ -128,12 +125,13 @@ public:
         }
     }
 
+    // would be used after mutating the nodes e.g. in copy propagation
     json toInstrs() {
         json instrs;
         for (auto block : blocks) {
-            json inner;
-            inner["label"] = block.blockName;
-            instrs.push_back(inner);
+            json label;
+            label["label"] = block.blockName;
+            instrs.push_back(label);
             for (auto nodePtr : block.nodes) {
                 instrs.emplace_back(nodes[nodePtr].instr);
             }
@@ -157,6 +155,7 @@ public:
         return ans;
     }
 
+    // T is a catch-all for any additional args you may want to pass into the printer
     template<typename T> std::string prettifyBlocks(std::string (*f)(int, CFG*, T), T t) {
         std::string nodeStr;
         for (int i = 0; i < blocks.size(); i++) {
@@ -229,6 +228,7 @@ public:
         );
     }
 
+    // TODO: implement DFS-based worklist algorithm (this doesn't even use a worklist)
     void naiveAnalyze(bool forwards) {
         nodeIn.clear();
         nodeOut.clear();
@@ -261,5 +261,4 @@ public:
             }
         }
     }
-
 };

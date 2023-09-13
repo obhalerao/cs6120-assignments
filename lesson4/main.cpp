@@ -27,6 +27,7 @@ public:
     }
 
     std::string stringify(vars_t t) override {
+        // need to escape the braces to display properly in dot
         return joinToString<typename std::unordered_set<std::string>::iterator>(t.begin(), t.end(), "\\{", ", ", "\\}");
     }
 };
@@ -40,9 +41,6 @@ int main() {
         auto analyzer = DataFlowAnalysis<DefinedVarsAnalysis, std::unordered_set<std::string>>(&cfg);
         analyzer.naiveAnalyze(true);
 
-        // printf("func %s\n", func["name"].dump().c_str());
-        // printf("%ld nodes\n", cfg.nodes.size());
-
         printf(
             "%s\n",
             cfg.prettifyNodes(
@@ -52,26 +50,6 @@ int main() {
                 }
             ).c_str()
             );
-        // printf(
-        //     "%s\n",
-        //     cfg.prettifyBlocks<int>(
-        //         [](int i, CFG* cfg, int dumbass) {
-        //             auto &blockNodes = cfg->blocks[i].nodes;
-        //             auto &nodes = cfg->nodes;
-
-        //             std::vector<std::string> nodeStrings;
-        //             for (auto it = blockNodes.begin(); it != blockNodes.end(); it++) {
-        //                 nodeStrings.push_back(string_format("{%s}", instr_to_string(nodes[*it].instr).c_str()));
-        //             }
-                    
-        //             return string_format(
-        //                 "shape=record, label=\"%s\"", 
-        //                 joinToString(nodeStrings.begin(), nodeStrings.end(), "{", "|", "}").c_str()
-        //             );
-        //         },
-        //         0
-        //     ).c_str()
-        // );
         printf(
             "%s\n",
             analyzer.prettifyBlockIn().c_str()
