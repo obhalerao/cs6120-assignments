@@ -10,108 +10,6 @@
 #include <string>
 #include <stdexcept>
 
-// from https://stackoverflow.com/a/26221725
-template<typename ... Args>
-std::string string_format(const std::string& format, Args ... args)
-{
-    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
-    if( size_s <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
-    auto size = static_cast<size_t>( size_s );
-    std::unique_ptr<char[]> buf( new char[ size ] );
-    std::snprintf( buf.get(), size, format.c_str(), args ... );
-    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
-}
-
-using json = nlohmann::json;
-
-
-std::string lower(std::string data) {
-    std::string ret = std::string(data);
-    std::transform(ret.begin(), ret.end(), ret.begin(), [](unsigned char c){ return std::tolower(c); });
-    return ret;
-}
-
-
-std::string value_to_string(json type, json value) {
-    const std::unordered_map<int, std::string> control_chars {
-        {0, std::string("\\0")},
-        {7, std::string("\\a")},
-        {8, std::string("\\b")},
-        {9, std::string("\\t")},
-        {10, std::string("\\n")},
-        {11, std::string("\\v")},
-        {12, std::string("\\f")},
-        {13, std::string("\\r")},
-    };
-
-    if (!type.is_object()) {
-        auto type_str = std::string(type);
-        std::string lowered = lower(type_str);
-        if (lowered == "char") {
-            std::string value_str = value.get<std::string>();
-            uint32_t value_int = value_str.at(0);
-            auto search = control_chars.find(value_int);
-            if (search != control_chars.end()) {
-                std::string ret = std::string("'") + search->second + std::string("'");
-                return ret;
-            }
-        }
-    }
-
-    std::string ret = lower(std::to_string(value.get<uint32_t>()));
-    return ret;
-}
-
-std::string type_to_string(json type) {
-    if (type.is_object()) {
-        for (auto& el : type.items()) {
-            return std::string(el.key()) + "<" + type_to_string(el.value()) + ">";
-        }
-        return "type_to_string_failed";
-    }
-    else {
-        return type;
-    }
-}
-
-std::string instr_to_string(json instr) {
-    if (instr.contains("op") && instr["op"] == "const") {
-        std::string dest_str = instr["dest"];
-        std::string tyann = (instr.contains("type")) ? (": " + type_to_string(instr["type"])) : "";
-        
-
-        auto dest = instr["dest"].get<std::string>();
-        std::string value = value_to_string(instr["type"], instr["value"]);
-
-        return dest + tyann + " = const " + value;
-    }
-    else {
-        std::string rhs = instr["op"];
-        if (instr.contains("funcs")) {
-            for (auto func : instr["funcs"]) {
-                rhs += "@" + func.get<std::string>();
-            }
-        }
-        if (instr.contains("args")) {
-            for (auto arg : instr["args"]) {
-                rhs += " " + arg.get<std::string>();
-            }
-        }
-        if (instr.contains("labels")) {
-            for (auto label : instr["labels"]) {
-                rhs += " ." + label.get<std::string>();
-            }
-        }
-        if (instr.contains("dest")) {
-            std::string tyann = (instr.contains("type")) ? (": " + type_to_string(instr["type"])) : "";
-            auto dest = instr["dest"].get<std::string>();
-            return dest + tyann + " = " + rhs;
-        } else {
-            return rhs;
-        }
-    }
-}
-
 class CFGNode {
 public:
     json instr;
@@ -178,6 +76,9 @@ public:
                 nodes.emplace_back(instr);
             }
         }
+        if (blockStarts.back() == nodes.size()) {
+            nodes.emplace_back(json({{"op", "nop"}}));
+        }
 
         for (int i = 0; i < blockStarts.size(); i++) {
             uint32_t end = (i < blockStarts.size() - 1) ? blockStarts[i + 1] : nodes.size();
@@ -240,19 +141,35 @@ public:
         return instrs;
     };
 
-    std::string prettify() {
+    std::string prettifyNodes(std::string (*f)(int, CFG*)) {
         std::string nodeStr;
         for (int i = 0; i < nodes.size(); i++) {
-            nodeStr.append(string_format("node_%d [label=\"%s\"]\n", i, instr_to_string(nodes[i].instr).c_str()));
+            nodeStr.append(string_format("node_%d [%s];\n", i, f(i, this).c_str()));
         }
         std::string edgeStr;
         for (int i = 0; i < nodes.size(); i++) {
             for (auto j : nodes[i].succs) {
+                edgeStr.append(string_format("node_%d -> node_%d;\n", i, j));
+            }
+        }
+
+        std::string ans = string_format("digraph %s_nodes {\n%s}\n", funcName.c_str(), (nodeStr + edgeStr).c_str());
+        return ans;
+    }
+
+    template<typename T> std::string prettifyBlocks(std::string (*f)(int, CFG*, T), T t) {
+        std::string nodeStr;
+        for (int i = 0; i < blocks.size(); i++) {
+            nodeStr.append(string_format("node_%d [%s]\n", i, f(i, this, t).c_str()));
+        }
+        std::string edgeStr;
+        for (int i = 0; i < blocks.size(); i++) {
+            for (auto j : blocks[i].succs) {
                 edgeStr.append(string_format("node_%d -> node_%d\n", i, j));
             }
         }
 
-        std::string ans = string_format("digraph %s {\n%s}\n", funcName.c_str(), (nodeStr + edgeStr).c_str());
+        std::string ans = string_format("digraph %s_blocks {\n%s}\n", funcName.c_str(), (nodeStr + edgeStr).c_str());
         return ans;
     }
 
@@ -275,6 +192,8 @@ public:
     virtual std::pair<T, bool> meet(const CFGNode &node, const std::vector<T> &influencers, const T &old) = 0;
 
     virtual std::pair<T, bool> transfer(const CFGNode &node, const T &influence, const T &old) = 0;
+
+    virtual std::string stringify(T t) = 0;
 };
 
 template<class DataFlowImpl, typename K>
@@ -287,6 +206,27 @@ public:
 
     explicit DataFlowAnalysis(CFG *cfg) : factory(), cfg(cfg) {
         static_assert(std::is_base_of<DataflowBaseSingleton<K>, DataFlowImpl>::value, "derived from wrong class??");
+    }
+
+    std::string prettifyBlockIn() {
+        return cfg->prettifyBlocks<std::vector<K>>(
+            [](int i, CFG *cfg, std::vector<K> nodeIn) {
+                auto &blockNodes = cfg->blocks[i].nodes;
+                auto &nodes = cfg->nodes;
+
+                std::vector<std::string> nodeStrings;
+                for (auto it = blockNodes.begin(); it != blockNodes.end(); it++) {
+                    nodeStrings.push_back(string_format("{%s}", instr_to_string(nodes[*it].instr).c_str()));
+                }
+                
+                return string_format(
+                    "shape=record, label=\"{{%s}|{}|%s}\"",
+                    DataFlowImpl().stringify(nodeIn[blockNodes.front()]).c_str(),
+                    joinToString(nodeStrings.begin(), nodeStrings.end(), "", "|", "").c_str()
+                );
+            },
+            nodeIn
+        );
     }
 
     void naiveAnalyze(bool forwards) {

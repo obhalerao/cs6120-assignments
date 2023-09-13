@@ -25,6 +25,10 @@ public:
         }
         return {outSet, outSet == old};
     }
+
+    std::string stringify(vars_t t) override {
+        return joinToString<typename std::unordered_set<std::string>::iterator>(t.begin(), t.end(), "\\{", ", ", "\\}");
+    }
 };
 
 int main() {
@@ -36,22 +40,42 @@ int main() {
         auto analyzer = DataFlowAnalysis<DefinedVarsAnalysis, std::unordered_set<std::string>>(&cfg);
         analyzer.naiveAnalyze(true);
 
-        printf("func %s\n", func["name"].dump().c_str());
-        printf("%ld nodes\n", cfg.nodes.size());
+        // printf("func %s\n", func["name"].dump().c_str());
+        // printf("%ld nodes\n", cfg.nodes.size());
 
-        for (auto block : cfg.blocks) {
-            auto &inSet = analyzer.nodeIn[block.nodes.front()];
-            auto &outSet = analyzer.nodeOut[block.nodes.back()];
-            std::string prettySetIn = joinToString(inSet.begin(), inSet.end(), std::string("{"), std::string("}"), std::string(", "));
-            std::string prettySetOut = joinToString(outSet.begin(), outSet.end(), std::string("{"), std::string("}"), std::string(", "));
-            
-            printf("block %s\n", block.blockName.c_str());
-            printf("defined in\n");
-            printf("%s\n", prettySetIn.c_str());
-            printf("defined out\n");
-            printf("%s\n", prettySetOut.c_str());
-        }
-        printf("%s\n", cfg.prettify().c_str());
+        printf(
+            "%s\n",
+            cfg.prettifyNodes(
+                [](int i, CFG* cfg){
+                    std::string instr = instr_to_string(cfg->nodes[i].instr);
+                    return string_format("label=\"%s\"", instr.c_str());
+                }
+            ).c_str()
+            );
+        // printf(
+        //     "%s\n",
+        //     cfg.prettifyBlocks<int>(
+        //         [](int i, CFG* cfg, int dumbass) {
+        //             auto &blockNodes = cfg->blocks[i].nodes;
+        //             auto &nodes = cfg->nodes;
+
+        //             std::vector<std::string> nodeStrings;
+        //             for (auto it = blockNodes.begin(); it != blockNodes.end(); it++) {
+        //                 nodeStrings.push_back(string_format("{%s}", instr_to_string(nodes[*it].instr).c_str()));
+        //             }
+                    
+        //             return string_format(
+        //                 "shape=record, label=\"%s\"", 
+        //                 joinToString(nodeStrings.begin(), nodeStrings.end(), "{", "|", "}").c_str()
+        //             );
+        //         },
+        //         0
+        //     ).c_str()
+        // );
+        printf(
+            "%s\n",
+            analyzer.prettifyBlockIn().c_str()
+        );
     }
     printf("\n");
 }
