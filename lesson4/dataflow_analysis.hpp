@@ -79,6 +79,10 @@ public:
         if (blockStarts.back() == nodes.size()) {
             nodes.emplace_back(json({{"op", "nop"}})); // make last block non-empty
         }
+        for (auto i : blockStarts) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
 
         auto numBlocks = blockStarts.size();
 
@@ -184,8 +188,8 @@ public:
         std::vector<std::vector<int>> SCCs;
 
         for (int v = 0; v < nodes.size(); v++) {
-            if (index.find(v) != index.end()) {
-                callStack.emplace_back(v, 0);
+            if (index.find(v) == index.end()) {
+                callStack.push_back({v, 0});
                 while (!callStack.empty()) {
                     std::pair<int, int> pair = callStack.back();
                     callStack.pop_back();
@@ -214,19 +218,20 @@ public:
 
                     if (pi < neighbors.size()) {
                         int w = neighbors[pi];
-                        callStack.emplace_back(v, pi + 1);
-                        callStack.emplace_back(w, 0);
+                        callStack.push_back({v, pi + 1});
+                        callStack.push_back({w, 0});
                         continue;
                     }
 
                     if (lowlink[v] == index[v]) {
                         std::vector<int> scc;
-                        while (true) {
+                        bool keep_going = true;
+                        while (keep_going) {
                             int w = stack.back();
                             stack.pop_back();
                             stackSet.erase(w);
                             scc.push_back(w);
-                            if (w == v) break;
+                            keep_going = w != v;
                         }
                         SCCs.push_back(scc);
                     }
@@ -280,9 +285,10 @@ public:
         static_assert(std::is_base_of<DataflowBaseSingleton<K>, DataFlowImpl>::value, "derived from wrong class??");
     }
 
-    std::string prettifyBlockIn() {
-        return cfg->prettifyBlocks<std::vector<K>>(
-            [](int i, CFG *cfg, std::vector<K> nodeIn) {
+    std::string prettifyBlock() {
+        return cfg->prettifyBlocks<std::pair<std::vector<K>, std::vector<K>>>(
+            [](int i, CFG *cfg, std::pair<std::vector<K>, std::vector<K>> nodeInOut) {
+                auto [nodeIn, nodeOut] = nodeInOut;
                 auto &blockNodes = cfg->blocks[i].nodes;
                 auto &nodes = cfg->nodes;
 
@@ -292,21 +298,29 @@ public:
                 }
                 
                 return string_format(
-                    "shape=record, label=\"{{%s}|{}|%s}\"",
+                    "shape=record, label=\"{{%s}|{}|%s|{}|{%s}}\"",
                     DataFlowImpl().stringify(nodeIn[blockNodes.front()]).c_str(),
-                    joinToString(nodeStrings.begin(), nodeStrings.end(), "", "|", "").c_str()
+                    joinToString(nodeStrings.begin(), nodeStrings.end(), "", "|", "").c_str(),
+                    DataFlowImpl().stringify(nodeOut[blockNodes.back()]).c_str()
                 );
             },
-            nodeIn
+            {nodeIn, nodeOut}
         );
     }
+
+
 
     void smartAnalyze(bool forwards) {
         nodeIn.clear();
         nodeOut.clear();
-        
 
-        auto &SCCs = cfg->dfs(); 
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            nodeIn.push_back(factory.makeTop());
+            nodeOut.push_back(factory.makeTop());
+        }
+
+
+        auto SCCs = cfg->dfs(); 
         if (forwards) {
             std::reverse(SCCs.begin(), SCCs.end());
         }
@@ -353,8 +367,6 @@ public:
                 }
             }
         }
-
-
     }
 
     // TODO: implement DFS-based worklist algorithm (this doesn't even use a worklist)

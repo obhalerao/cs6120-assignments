@@ -26,9 +26,19 @@ public:
         return {outSet, outSet == old};
     }
 
-    std::string stringify(vars_t t) override {
+    std::string stringify_old(vars_t t) {
         // need to escape the braces to display properly in dot
         return joinToString<typename std::unordered_set<std::string>::iterator>(t.begin(), t.end(), "\\{", ", ", "\\}");
+    }
+
+    std::string stringify(vars_t t) override {
+        // need to escape the braces to display properly in dot
+        std::vector<std::string> help;
+        for (auto i : t) {
+            help.push_back(i);
+        }
+        std::sort(help.begin(), help.end());
+        return joinToString<typename std::vector<std::string>::iterator>(help.begin(), help.end(), "\\{", ", ", "\\}");
     }
 };
 
@@ -39,7 +49,7 @@ int main() {
     for(auto func : prog["functions"]){
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
         auto analyzer = DataFlowAnalysis<DefinedVarsAnalysis, std::unordered_set<std::string>>(&cfg);
-        analyzer.naiveAnalyze(true);
+        analyzer.smartAnalyze(true);
 
         printf(
             "%s\n",
@@ -52,7 +62,7 @@ int main() {
             );
         printf(
             "%s\n",
-            analyzer.prettifyBlockIn().c_str()
+            analyzer.prettifyBlock().c_str()
         );
     }
     printf("\n");
