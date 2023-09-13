@@ -9,6 +9,8 @@
 #include <memory>
 #include <string>
 #include <stdexcept>
+#include <deque>
+#include <optional>
 
 class CFGNode {
 public:
@@ -172,6 +174,77 @@ public:
         return ans;
     }
 
+    void populate_dfs() {
+        int i = 0;
+        std::unordered_map<int, int> index;
+        std::unordered_map<int, int> lowlink;
+        std::unordered_set<int> stackSet;
+        std::deque<int> stack;
+        std::deque<std::pair<int, int>> callStack;
+        std::vector<std::vector<int>> SCCs;
+
+        for (int v = 0; v < nodes.size(); v++) {
+            if (index.find(v) != index.end()) {
+                callStack.emplace_back(v, 0);
+                while (!callStack.empty()) {
+                    std::pair<int, int> pair = callStack.back();
+                    callStack.pop_back();
+                    auto v = pair.first;
+                    auto pi = pair.second;
+                    auto &neighbors = nodes[v].succs;
+
+                    if (pi == 0) {
+                        index[v] = i;
+                        lowlink[v] = i;
+                        i += 1;
+                        stack.push_back(v);
+                        stackSet.insert(v);
+                    } else if (pi > 0) {
+                        int prev = neighbors[pi - 1];
+                        lowlink[v] = std::min(lowlink[v], lowlink[prev]);
+                    }
+
+                    while (pi < neighbors.size() && index.find(neighbors[pi]) != index.end()) {
+                        int w = neighbors[pi];
+                        if (stackSet.find(w) != stackSet.end()) {
+                            lowlink[v] = std::min(lowlink[v], index[w]);
+                        }
+                        pi++;
+                    }
+
+                    if (pi < neighbors.size()) {
+                        int w = neighbors[pi];
+                        callStack.emplace_back(v, pi + 1);
+                        callStack.emplace_back(w, 0);
+                        continue;
+                    }
+
+                    if (lowlink[v] == index[v]) {
+                        std::vector<int> scc;
+                        while (true) {
+                            int w = stack.back();
+                            stack.pop_back();
+                            stackSet.erase(w);
+                            scc.push_back(w);
+                            if (w == v) break;
+                        }
+                        SCCs.push_back(scc);
+                    }
+
+                }
+            }
+        }
+        dfs_results = SCCs;
+    }
+
+    std::vector<std::vector<int>> dfs() {
+        if (!dfs_results.has_value()) populate_dfs();
+        return dfs_results.value();
+    }
+
+private:
+    std::optional<std::vector<std::vector<int>>> dfs_results;
+
 };
 
 template<typename T>
@@ -228,6 +301,62 @@ public:
         );
     }
 
+    void smartAnalyze(bool forwards) {
+        nodeIn.clear();
+        nodeOut.clear();
+        
+
+        auto &SCCs = cfg->dfs(); 
+        if (forwards) {
+            std::reverse(SCCs.begin(), SCCs.end());
+        }
+
+        for (auto iter = SCCs.begin(); iter != SCCs.end(); iter++) {
+            auto &scc = *iter;
+            std::deque<int> worklist;
+            std::unordered_set<int> workSet;
+            for (auto it = scc.begin(); it != scc.end(); it++) {
+                worklist.push_back(*it);
+                workSet.insert(*it);
+            }
+
+            while (worklist.size() != 0) {
+                auto v = worklist.front();
+                worklist.pop_front();
+                workSet.erase(v);
+                auto node = cfg->nodes[v];
+
+                std::vector<K> preds;
+                for (auto predNodePtr: (forwards ? node.preds : node.succs)) {
+                    preds.push_back(nodeOut[predNodePtr]);
+                }
+
+                auto meetRes = factory.meet(node, preds, nodeIn[v]);
+                auto transferRes = factory.transfer(node, meetRes.first, nodeOut[v]);
+
+                if (forwards) {
+                    nodeIn[v] = meetRes.first;
+                    nodeOut[v] = transferRes.first;
+                } else {
+                    nodeOut[v] = meetRes.first;
+                    nodeIn[v] = transferRes.first;
+                }
+
+                if (!meetRes.second || !transferRes.second) {
+                    auto &nextNodes = forwards ? node.succs : node.preds;
+                    for (auto it = nextNodes.begin(); it != nextNodes.end(); it++) {
+                        if (workSet.find(*it) == workSet.end()) {
+                            workSet.insert(*it);
+                            worklist.push_back(*it);
+                        }
+                    }
+                }
+            }
+        }
+
+
+    }
+
     // TODO: implement DFS-based worklist algorithm (this doesn't even use a worklist)
     void naiveAnalyze(bool forwards) {
         nodeIn.clear();
@@ -250,12 +379,18 @@ public:
                     preds.push_back(nodeOut[predNodePtr]);
                 }
 
-                auto inRes = factory.meet(node, preds, nodeIn[i]);
-                auto outRes = factory.transfer(node, inRes.first, nodeOut[i]);
+                auto meetRes = factory.meet(node, preds, nodeIn[i]);
+                auto transferRes = factory.transfer(node, meetRes.first, nodeOut[i]);
 
-                nodeIn[i] = inRes.first;
-                nodeOut[i] = outRes.first;
-                if (!inRes.second || !outRes.second) {
+                if (forwards) {
+                    nodeIn[i] = meetRes.first;
+                    nodeOut[i] = transferRes.first;
+                } else {
+                    nodeOut[i] = meetRes.first;
+                    nodeIn[i] = transferRes.first;
+                }
+                
+                if (!meetRes.second || !transferRes.second) {
                     changed = true;
                 }
             }
