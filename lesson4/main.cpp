@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (profileMode) {
-                fprintf(stderr, "%d\n", analyzer.count);
+                fprintf(stderr, "Total times meet called: %d\n", analyzer.count);
             }
 
         } else {

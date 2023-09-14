@@ -1,6 +1,8 @@
 .vscode/*
 build/
 .idea/
+.ipynb_checkpoints/
+*.ipynb
 cmake-build-debug/
 CMakeFiles/
 cmake_install.*
