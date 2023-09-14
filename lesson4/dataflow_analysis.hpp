@@ -152,33 +152,35 @@ public:
     std::string prettifyNodes(std::string (*f)(int, CFG*)) {
         std::string nodeStr;
         for (int i = 0; i < nodes.size(); i++) {
-            nodeStr.append(string_format("node_%d [%s];\n", i, f(i, this).c_str()));
+            nodeStr.append(string_format("%s_node_%d [%s];\n", funcName.c_str(), i, f(i, this).c_str()));
         }
         std::string edgeStr;
         for (int i = 0; i < nodes.size(); i++) {
             for (auto j : nodes[i].succs) {
-                edgeStr.append(string_format("node_%d -> node_%d;\n", i, j));
+                edgeStr.append(string_format("%s_node_%d -> %s_node_%d;\n", funcName.c_str(), i, funcName.c_str(), j));
             }
         }
 
-        std::string ans = string_format("digraph %s_nodes {\n%s}\n", funcName.c_str(), (nodeStr + edgeStr).c_str());
+        std::string ans = string_format("subgraph cluster_%s_nodes {\n%s}\n", funcName.c_str(), (nodeStr + edgeStr).c_str());
         return ans;
     }
 
     // T is a catch-all for any additional args you may want to pass into the printer
     template<typename T> std::string prettifyBlocks(std::string (*f)(int, CFG*, T), T t) {
-        std::string nodeStr;
+        std::vector<std::string> lines;
+        lines.push_back(string_format("label = \"%s\"", funcName.c_str()));
         for (int i = 0; i < blocks.size(); i++) {
-            nodeStr.append(string_format("node_%d [%s]\n", i, f(i, this, t).c_str()));
+            lines.push_back(string_format("%s_block_%d [%s]", funcName.c_str(), i, f(i, this, t).c_str()));
         }
-        std::string edgeStr;
         for (int i = 0; i < blocks.size(); i++) {
             for (auto j : blocks[i].succs) {
-                edgeStr.append(string_format("node_%d -> node_%d\n", i, j));
+                lines.push_back(string_format("%s_block_%d -> %s_block_%d", funcName.c_str(), i, funcName.c_str(), j));
             }
         }
 
-        std::string ans = string_format("digraph %s_blocks {\n%s}\n", funcName.c_str(), (nodeStr + edgeStr).c_str());
+        auto lines_str = joinToString<std::vector<std::string>::iterator>(lines.begin(), lines.end(), "", "\n\t", "");
+
+        std::string ans = string_format("subgraph cluster_%s_blocks {\n\t%s\n}\n", funcName.c_str(), lines_str.c_str());
         return ans;
     }
 

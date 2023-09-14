@@ -89,7 +89,15 @@ std::string value_to_string(json type, json value) {
         }
     }
 
-    std::string ret = lower(std::to_string(value.get<int64_t>()));
+    std::string ret;
+
+    if (value.is_number_integer()) {
+        ret = std::to_string(value.get<int64_t>());
+    } else if (value.is_boolean()) {
+        ret = value.get<bool>() ? "true" : "false";
+    } else if (value.is_number_float()) {
+        ret = std::to_string(value.get<float>());
+    }
     return ret;
 }
 
