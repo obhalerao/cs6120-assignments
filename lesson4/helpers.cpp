@@ -89,7 +89,7 @@ std::string value_to_string(json type, json value) {
         }
     }
 
-    std::string ret = lower(std::to_string(value.get<uint32_t>()));
+    std::string ret = lower(std::to_string(value.get<int64_t>()));
     return ret;
 }
 
@@ -122,7 +122,7 @@ std::string instr_to_string(json instr) {
         std::string rhs = instr["op"];
         if (instr.contains("funcs")) {
             for (auto func : instr["funcs"]) {
-                rhs += "@" + func.get<std::string>();
+                rhs += " @" + func.get<std::string>();
             }
         }
         if (instr.contains("args")) {

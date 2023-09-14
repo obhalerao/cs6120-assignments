@@ -47,9 +47,9 @@ public:
     std::unordered_map<std::string, int> blockOfString;
 
     CFG(std::string funcName, json& instrs) : funcName(funcName) {
-        std::string prefix = "anti_clobber_label";
+        std::string prefix = "unreachable_anti_clobber_label";
         PrefixCounter pc(prefix);
-        std::string firstLabel = pc.generate();
+        std::string firstLabel = "start_of_function_anti_clobber_label";
 
         std::vector<uint32_t> blockStarts;  // first instruction in ith block
         std::vector<std::string> labels; // label for ith block
@@ -61,17 +61,25 @@ public:
         bool unreachable = false;  // TODO: decide whether to put these blocks back in and leave them disconnected from the rest of the function
 
         for (auto instr : instrs) {
-            if (unreachable && !instr.contains("label")) continue;
+            if (unreachable && !instr.contains("label")) {
+                // create a label for this unreachable code
+                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()) {
+                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                }
+                blockStarts.push_back(nodes.size());
+                labels.push_back(pc.generate());
+                unreachable = false;
+            }
 
-            unreachable = false;
             if (instr.contains("label")) {
                 if (blockStarts.size() > 0 && blockStarts.back() == nodes.size())
-                    nodes.emplace_back(json({{"op", "nop"}})); // make this block non-empty
+                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
                 blockStarts.push_back(nodes.size());
                 labels.push_back(instr["label"]);
-            } else if (instr.contains("op") && instr["op"] == "jmp" || instr["op"] == "br") {
+                unreachable = false;
+            } else if (instr.contains("op") && (instr["op"] == "jmp" || instr["op"] == "br" || instr["op"] == "ret")) {
                 nodes.emplace_back(instr);
-                unreachable = true; // instructions immediately after an unconditional jump, or a branch with two labels, are unreachable
+                unreachable = true; // instructions immediately after the end of a basic block are unreachable
             } else {
                 nodes.emplace_back(instr);
             }
@@ -79,10 +87,6 @@ public:
         if (blockStarts.back() == nodes.size()) {
             nodes.emplace_back(json({{"op", "nop"}})); // make last block non-empty
         }
-        for (auto i : blockStarts) {
-            std::cout << i << " ";
-        }
-        std::cout << std::endl;
 
         auto numBlocks = blockStarts.size();
 
@@ -252,16 +256,6 @@ private:
 
 };
 
-template<typename T>
-class ForwardDataflowBaseSingleton {
-public:
-    virtual T makeTop() = 0;
-
-    virtual std::pair<T, bool> inCalc(const CFGNode &node, const std::vector<T> &outs, const T &oldIn) = 0;
-
-    virtual std::pair<T, bool> outCalc(const CFGNode &node, const T &inNew, const T &outOld) = 0;
-};
-
 template<typename T> class DataflowBaseSingleton {
 public:
     virtual T makeTop() = 0;
@@ -273,19 +267,52 @@ public:
     virtual std::string stringify(T t) = 0;
 };
 
+class DataFlowAnalysisBase {
+public:
+    virtual std::string report() { return "dummy-impl"; }
+
+    virtual std::string prettifyBlock() { return "dummy-impl"; }
+
+    virtual void smartAnalyze(bool forwards) { printf("passing\n"); }
+
+    virtual void naiveAnalyze(bool forwards) { printf("passing\n"); }
+};
+
+class DataFlowAnalysisAbstract : public DataFlowAnalysisBase {
+public:
+    virtual std::string report() override = 0;
+
+    virtual std::string prettifyBlock() override = 0;
+
+    virtual void smartAnalyze(bool forwards) override = 0;
+
+    virtual void naiveAnalyze(bool forwards) override = 0;
+};
+
 template<class DataFlowImpl, typename K>
-class DataFlowAnalysis {
+class DataFlowAnalysis : public DataFlowAnalysisAbstract {
 public:
     CFG *cfg;
     std::vector<K> nodeIn;
     std::vector<K> nodeOut;
     DataFlowImpl factory;
+    int count;
 
     explicit DataFlowAnalysis(CFG *cfg) : factory(), cfg(cfg) {
         static_assert(std::is_base_of<DataflowBaseSingleton<K>, DataFlowImpl>::value, "derived from wrong class??");
     }
 
-    std::string prettifyBlock() {
+    virtual std::string report() override {
+        std::vector<std::string> strings;
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            strings.push_back(string_format("node %d, instr: %s\n", i, instr_to_string(cfg->nodes[i].instr).c_str()));
+            strings.push_back(string_format("in: %s\n", factory.stringify(nodeIn[i]).c_str()));
+            strings.push_back(string_format("out: %s\n", factory.stringify(nodeOut[i]).c_str()));
+        }
+        return joinToString(strings.begin(), strings.end(), "", "", "");
+    }
+
+    virtual std::string prettifyBlock() override {
         return cfg->prettifyBlocks<std::pair<std::vector<K>, std::vector<K>>>(
             [](int i, CFG *cfg, std::pair<std::vector<K>, std::vector<K>> nodeInOut) {
                 auto [nodeIn, nodeOut] = nodeInOut;
@@ -294,13 +321,13 @@ public:
 
                 std::vector<std::string> nodeStrings;
                 for (auto it = blockNodes.begin(); it != blockNodes.end(); it++) {
-                    nodeStrings.push_back(string_format("{%s}", instr_to_string(nodes[*it].instr).c_str()));
+                    nodeStrings.push_back(instr_to_string(nodes[*it].instr));
                 }
                 
                 return string_format(
-                    "shape=record, label=\"{{%s}|{}|%s|{}|{%s}}\"",
+                    "shape=Mrecord, label=\"{{%s}|%s|{%s}}\"",
                     DataFlowImpl().stringify(nodeIn[blockNodes.front()]).c_str(),
-                    joinToString(nodeStrings.begin(), nodeStrings.end(), "", "|", "").c_str(),
+                    joinToString(nodeStrings.begin(), nodeStrings.end(), "", "\\n", "").c_str(),
                     DataFlowImpl().stringify(nodeOut[blockNodes.back()]).c_str()
                 );
             },
@@ -309,8 +336,8 @@ public:
     }
 
 
-
-    void smartAnalyze(bool forwards) {
+    virtual void smartAnalyze(bool forwards) override {
+        count = 0;
         nodeIn.clear();
         nodeOut.clear();
 
@@ -335,6 +362,7 @@ public:
             }
 
             while (worklist.size() != 0) {
+                count++;
                 auto v = worklist.front();
                 worklist.pop_front();
                 workSet.erase(v);
@@ -345,8 +373,8 @@ public:
                     preds.push_back(nodeOut[predNodePtr]);
                 }
 
-                auto meetRes = factory.meet(node, preds, nodeIn[v]);
-                auto transferRes = factory.transfer(node, meetRes.first, nodeOut[v]);
+                auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[v] : nodeOut[v]));
+                auto transferRes = factory.transfer(node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
 
                 if (forwards) {
                     nodeIn[v] = meetRes.first;
@@ -369,8 +397,8 @@ public:
         }
     }
 
-    // TODO: implement DFS-based worklist algorithm (this doesn't even use a worklist)
-    void naiveAnalyze(bool forwards) {
+    virtual void naiveAnalyze(bool forwards) override {
+        count = 0;
         nodeIn.clear();
         nodeOut.clear();
         for (int i = 0; i < cfg->nodes.size(); i++) {
@@ -379,7 +407,6 @@ public:
         }
 
         bool changed = true;
-        uint32_t count = 0;
         while (changed) {
             changed = false;
             for (int i = 0; i < cfg->nodes.size(); i++) {
@@ -391,8 +418,8 @@ public:
                     preds.push_back(nodeOut[predNodePtr]);
                 }
 
-                auto meetRes = factory.meet(node, preds, nodeIn[i]);
-                auto transferRes = factory.transfer(node, meetRes.first, nodeOut[i]);
+                auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[i] : nodeOut[i]));
+                auto transferRes = factory.transfer(node, meetRes.first, (forwards ? nodeOut[i] : nodeIn[i]));
 
                 if (forwards) {
                     nodeIn[i] = meetRes.first;

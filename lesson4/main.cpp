@@ -62,7 +62,7 @@ public:
 class ConstantPropAnalysis: DataflowBaseSingleton<std::unordered_map<std::string, std::pair<ll, type_t>>>{
 public:
     using varmap_t = std::unordered_map<std::string, std::pair<ll, type_t>>;
-
+    
     varmap_t makeTop() override {
         return {};
     }
@@ -107,33 +107,80 @@ public:
         [](std::pair<std::string, std::pair<ll, type_t>> entry){
             return "(" + entry.first + " -\\> (" + std::to_string(entry.second.first) + ", " + type2str[entry.second.second] + "))";
         });
+        std::sort(pairs.begin(), pairs.end());
         return joinToString<typename std::vector<std::string>::iterator>(pairs.begin(), pairs.end(), "\\{", ", ", "\\}");
     }
 
 };
 
-int main() {
+int main(int argc, char* argv[]) {
+
+    bool smartMode = false;
+    bool profileMode = false;
+    bool graphMode = false;
+    std::string analysis = "none";
+
+    // this loop was basically written by ChatGPT
+    // Start from 1 to skip the program name (argv[0])
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-s") {
+            smartMode = true;
+        } else if (arg == "-p") {
+            profileMode = true;
+        } else if (arg == "-g") {
+            graphMode = true;
+        } else if (arg == "-a" && i + 1 < argc) {
+            analysis = argv[i + 1];
+        }
+    }
+
     json prog;
     std::cin >> prog;
     auto func = prog["functions"][0];
     for(auto func : prog["functions"]){
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
-        auto analyzer = DataFlowAnalysis<ConstantPropAnalysis, std::unordered_map<std::string, std::pair<ll, type_t>>>(&cfg);
-        analyzer.naiveAnalyze(true);
+        
+        // DataFlowAnalysisBase analyzer;
+        bool forwards;
+        if (analysis == "cprop") {
+            auto analyzer = DataFlowAnalysis<ConstantPropAnalysis, std::unordered_map<std::string, std::pair<ll, type_t>>>(&cfg);
+            forwards = true;
+            if (smartMode) {
+                analyzer.smartAnalyze(forwards);
+            } else {
+                analyzer.naiveAnalyze(forwards);
+            }
 
-        printf(
-            "%s\n",
-            cfg.prettifyNodes(
-                [](int i, CFG* cfg){
-                    std::string instr = instr_to_string(cfg->nodes[i].instr);
-                    return string_format("label=\"%s\"", instr.c_str());
-                }
-            ).c_str()
-            );
-        printf(
-            "%s\n",
-            analyzer.prettifyBlock().c_str()
-        );
+            if (graphMode) {
+                printf("%s\n", analyzer.prettifyBlock().c_str());
+            } else {
+                printf("%s\n", analyzer.report().c_str());
+            }
+
+            if (profileMode) {
+                fprintf(stderr, "%d\n", analyzer.count);
+            }
+
+        } else {
+            auto analyzer = DataFlowAnalysis<DefinedVarsAnalysis, std::unordered_set<std::string>>(&cfg);
+            forwards = true;
+            if (smartMode) {
+                analyzer.smartAnalyze(forwards);
+            } else {
+                analyzer.naiveAnalyze(forwards);
+            }
+
+            if (graphMode) {
+                printf("%s\n", analyzer.prettifyBlock().c_str());
+            } else {
+                printf("%s\n", analyzer.report().c_str());
+            }
+
+            if (profileMode) {
+                fprintf(stderr, "%d\n", analyzer.count);
+            }
+        
+        }        
     }
-    printf("\n");
 }
