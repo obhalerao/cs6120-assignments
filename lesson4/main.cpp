@@ -138,6 +138,11 @@ int main(int argc, char* argv[]) {
     json prog;
     std::cin >> prog;
     auto func = prog["functions"][0];
+
+    if (graphMode) {
+        printf("digraph {\n");
+    }
+
     for(auto func : prog["functions"]){
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
         
@@ -182,5 +187,9 @@ int main(int argc, char* argv[]) {
             }
         
         }        
+    }
+
+    if (graphMode) {
+        printf("}\n");
     }
 }
