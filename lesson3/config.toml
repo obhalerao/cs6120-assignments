@@ -1,5 +1,5 @@
 extract = 'total_dyn_inst: (\d+)'
-benchmarks = 'benchmarks/*/*.bril'
+benchmarks = '../benchmarks/*/*.bril'
 timeout = 15
 
 [runs.baseline]

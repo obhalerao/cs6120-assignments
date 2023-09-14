@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (profileMode) {
-                fprintf(stderr, "%d\n", analyzer.count);
+                fprintf(stderr, "reported_iter_count: %d\n", analyzer.count);
             }
 
         } else {
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (profileMode) {
-                fprintf(stderr, "%d\n", analyzer.count);
+                fprintf(stderr, "reported_iter_count: %d\n", analyzer.count);
             }
         
         }        

@@ -1,0 +1,15 @@
+extract = 'reported_iter_count: (\d+)'
+benchmarks = './benchmarks/*/*.bril'
+timeout = 15
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "./l4_dataflow -p -a cprop",
+]
+
+[runs.smart]
+pipeline = [
+    "bril2json",
+    "./l4_dataflow -s -p -a cprop",
+]
