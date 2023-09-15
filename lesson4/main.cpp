@@ -121,7 +121,7 @@ public:
 
 int main(int argc, char* argv[]) {
 
-    bool smartMode = false;
+    std::string analyzeMode = "naive";
     bool profileMode = false;
     bool graphMode = false;
     std::string analysis = "none";
@@ -131,9 +131,11 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "-s") {
-            smartMode = true;
+            analyzeMode = "smart";
         } else if (arg == "-p") {
             profileMode = true;
+        } else if (arg == "-w") {
+            analyzeMode = "worklist";
         } else if (arg == "-g") {
             graphMode = true;
         } else if (arg == "-a" && i + 1 < argc) {
@@ -157,27 +159,10 @@ int main(int argc, char* argv[]) {
         if (analysis == "cprop") {
             auto analyzer = DataFlowAnalysis<ConstantPropAnalysis, std::unordered_map<std::string, std::pair<std::optional<ll>, type_t>>>(&cfg);
             forwards = true;
-            if (smartMode) {
+            if (analyzeMode == "smart") {
                 analyzer.smartAnalyze(forwards);
-            } else {
-                analyzer.naiveAnalyze(forwards);
-            }
-
-            if (graphMode) {
-                printf("%s\n", analyzer.prettifyBlock().c_str());
-            } else {
-                //printf("%s\n", analyzer.report().c_str());
-            }
-
-            if (profileMode) {
-                fprintf(stderr, "Total times meet called: %d\n", analyzer.count);
-            }
-
-        } else {
-            auto analyzer = DataFlowAnalysis<DefinedVarsAnalysis, std::unordered_set<std::string>>(&cfg);
-            forwards = true;
-            if (smartMode) {
-                analyzer.smartAnalyze(forwards);
+            } else if (analyzeMode == "worklist") {
+                analyzer.worklistAnalyze(forwards);
             } else {
                 analyzer.naiveAnalyze(forwards);
             }
@@ -189,7 +174,28 @@ int main(int argc, char* argv[]) {
             }
 
             if (profileMode) {
-                fprintf(stderr, "Total times meet called: %d\n", analyzer.count);
+                fprintf(stderr, "Total times meet called for function %s: %d\n", func["name"].get<std::string>().c_str(), analyzer.count);
+            }
+
+        } else {
+            auto analyzer = DataFlowAnalysis<DefinedVarsAnalysis, std::unordered_set<std::string>>(&cfg);
+            forwards = true;
+            if (analyzeMode == "smart") {
+                analyzer.smartAnalyze(forwards);
+            } else if (analyzeMode == "worklist") {
+                analyzer.worklistAnalyze(forwards);
+            } else {
+                analyzer.naiveAnalyze(forwards);
+            }
+
+            if (graphMode) {
+                printf("%s\n", analyzer.prettifyBlock().c_str());
+            } else {
+                printf("%s\n", analyzer.report().c_str());
+            }
+
+            if (profileMode) {
+                fprintf(stderr, "Total times meet called for function %s: %d\n", func["name"].get<std::string>().c_str(), analyzer.count);
             }
         
         }        

@@ -1,7 +1,5 @@
-# meant for vbrench, not brench
-
 extract = 'Total times meet called for function (?P<label>.*): (?P<fom>\d+)'
-benchmarks = './benchmarks/*/*.bril'
+benchmarks = './benchmarks/adversarial_worklist/*.bril'
 timeout = 15
 
 [runs.baseline]

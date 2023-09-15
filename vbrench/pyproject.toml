@@ -1,0 +1,17 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "vbrench"
+author = "Adrian Sampson/Sanjit Basker"
+author-email = "asampson@cs.cornell.edu,sb866@cornell.edu"
+home-page = "https://github.com/obhalerao/cs6120-assignments"
+requires-python = ">=3.4"
+requires = [
+    "click",
+    "tomlkit",
+]
+
+[tool.flit.scripts]
+vbrench = "vbrench:vbrench"

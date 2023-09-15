@@ -277,6 +277,8 @@ public:
 
     virtual void smartAnalyze(bool forwards) { printf("passing\n"); }
 
+    virtual void worklistAnalyze(bool forwards) { printf("passing\n"); }
+
     virtual void naiveAnalyze(bool forwards) { printf("passing\n"); }
 };
 
@@ -287,6 +289,8 @@ public:
     virtual std::string prettifyBlock() override = 0;
 
     virtual void smartAnalyze(bool forwards) override = 0;
+
+    virtual void worklistAnalyze(bool forwards) override = 0;
 
     virtual void naiveAnalyze(bool forwards) override = 0;
 };
@@ -400,6 +404,55 @@ public:
                 }
             }
         }
+    }
+
+    virtual void worklistAnalyze(bool forwards) override {
+        count = 0;
+        nodeIn.clear();
+        nodeOut.clear();
+        std::deque<int> worklist;
+        std::unordered_set<int> workSet;
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            nodeIn.push_back(factory.makeTop());
+            nodeOut.push_back(factory.makeTop());
+            worklist.push_back(i);
+            workSet.insert(i);
+        }
+
+        while (worklist.size() != 0) {
+            count++;
+            auto v = worklist.front();
+            worklist.pop_front();
+            workSet.erase(v);
+            auto node = cfg->nodes[v];
+
+            std::vector<K> preds;
+            for (auto predNodePtr: (forwards ? node.preds : node.succs)) {
+                preds.push_back(nodeOut[predNodePtr]);
+            }
+
+            auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[v] : nodeOut[v]));
+            auto transferRes = factory.transfer(node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
+
+            if (forwards) {
+                nodeIn[v] = meetRes.first;
+                nodeOut[v] = transferRes.first;
+            } else {
+                nodeOut[v] = meetRes.first;
+                nodeIn[v] = transferRes.first;
+            }
+
+            if (!meetRes.second || !transferRes.second) {
+                auto &nextNodes = forwards ? node.succs : node.preds;
+                for (auto it = nextNodes.begin(); it != nextNodes.end(); it++) {
+                    if (workSet.find(*it) == workSet.end()) {
+                        workSet.insert(*it);
+                        worklist.push_back(*it);
+                    }
+                }
+            }
+        } 
+
     }
 
     virtual void naiveAnalyze(bool forwards) override {
