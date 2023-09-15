@@ -68,7 +68,7 @@ public:
     }
 
     std::pair<varmap_t, bool> meet(const CFGNode &node, const std::vector<varmap_t> &influencers, const varmap_t &old) override {
-        varmap_t unionMap(old);
+        varmap_t unionMap;
         for(varmap_t inConsts: influencers){
             for(auto it: inConsts){
                 if(unionMap.find(it.first) != unionMap.end() 

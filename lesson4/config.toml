@@ -5,11 +5,11 @@ timeout = 15
 [runs.baseline]
 pipeline = [
     "bril2json",
-    "./l4_dataflow -p"
+    "./l4_dataflow -a cprop -p"
 ]
 
 [runs.smart]
 pipeline = [
     "bril2json",
-    "./l4_dataflow -s -p",
+    "./l4_dataflow -a cprop -s -p",
 ]
