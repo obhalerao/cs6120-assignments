@@ -96,8 +96,6 @@ public:
                 ll val = node.instr["value"];
                 type_t type = str2type[node.instr["type"]];
                 outMap[node.instr["dest"]] = std::make_pair(std::optional<ll>(val), type);
-            }else if(node.instr["op"] == "id" && outMap.find(node.instr["args"][0]) != outMap.end()){
-                outMap[node.instr["dest"]] = outMap[node.instr["args"][0]];
             }else if(node.instr["type"].type_name() == "string" && str2type.find(node.instr["type"]) != str2type.end()){
                 outMap[node.instr["dest"]] = std::make_pair(std::nullopt, str2type[node.instr["type"]]);
             }
@@ -111,7 +109,7 @@ public:
         std::transform(t.begin(), t.end(), std::back_inserter(pairs), 
         [](std::pair<std::string, std::pair<std::optional<ll>, type_t>> entry){
             if(!entry.second.first.has_value()){
-                return "(" + entry.first + " -\\> (" + "UNDEF" + ", " + type2str[entry.second.second] + "))"; 
+                return "(" + entry.first + " -\\> (" + "MULT_DEF" + ", " + type2str[entry.second.second] + "))"; 
             }
             return "(" + entry.first + " -\\> (" + std::to_string(entry.second.first.value_or(0)) + ", " + type2str[entry.second.second] + "))";
         });
@@ -168,7 +166,7 @@ int main(int argc, char* argv[]) {
             if (graphMode) {
                 printf("%s\n", analyzer.prettifyBlock().c_str());
             } else {
-                printf("%s\n", analyzer.report().c_str());
+                //printf("%s\n", analyzer.report().c_str());
             }
 
             if (profileMode) {
