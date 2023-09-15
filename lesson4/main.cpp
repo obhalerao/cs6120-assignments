@@ -93,7 +93,6 @@ public:
         if(node.instr.contains("dest")){
             if(node.instr["op"] == "const" && (node.instr["type"] == "int"
                 || node.instr["type"] == "bool")){
-                std::cout << "hi" << std::endl;
                 ll val = node.instr["value"];
                 type_t type = str2type[node.instr["type"]];
                 outMap[node.instr["dest"]] = std::make_pair(std::optional<ll>(val), type);
