@@ -1,15 +1,15 @@
 extract = 'Total times meet called: (\d+)'
-benchmarks = '../benchmarks/*/*.bril'
+benchmarks = './benchmarks/*/*.bril'
 timeout = 15
 
 [runs.baseline]
 pipeline = [
     "bril2json",
-    "../l4_dataflow -p"
+    "./l4_dataflow -p"
 ]
 
 [runs.smart]
 pipeline = [
     "bril2json",
-    "../l4_dataflow -s -p",
+    "./l4_dataflow -s -p",
 ]
