@@ -83,13 +83,16 @@ public:
     }
 
     std::pair<varmap_t, bool> transfer(const CFGNode &node, const varmap_t &influence, const varmap_t &old) override {
-        varmap_t outMap(old);
+        varmap_t outMap;
         outMap.insert(influence.begin(), influence.end());
 
         //TODO: maybe add folding
 
+        //remove things that are in In but not in out
+
         if(node.instr.contains("dest")){
-            if(node.instr["op"] == "const"){
+            if(node.instr["op"] == "const" && (node.instr["type"] == "int"
+                || node.instr["type"] == "bool")){
                 ll val = node.instr["value"];
                 type_t type = str2type[node.instr["type"]];
                 outMap[node.instr["dest"]] = std::make_pair(val, type);
@@ -97,6 +100,8 @@ public:
                 outMap[node.instr["dest"]] = outMap[node.instr["args"][0]];
             }
         }
+
+        
 
         return {outMap, outMap == old};
     }

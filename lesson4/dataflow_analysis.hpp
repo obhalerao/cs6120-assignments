@@ -356,11 +356,13 @@ public:
 
         for (auto iter = SCCs.begin(); iter != SCCs.end(); iter++) {
             auto &scc = *iter;
+            std::unordered_set<int> sccSet;
             std::deque<int> worklist;
             std::unordered_set<int> workSet;
             for (auto it = scc.begin(); it != scc.end(); it++) {
                 worklist.push_back(*it);
                 workSet.insert(*it);
+                sccSet.insert(*it);
             }
 
             while (worklist.size() != 0) {
@@ -389,7 +391,8 @@ public:
                 if (!meetRes.second || !transferRes.second) {
                     auto &nextNodes = forwards ? node.succs : node.preds;
                     for (auto it = nextNodes.begin(); it != nextNodes.end(); it++) {
-                        if (workSet.find(*it) == workSet.end()) {
+                        if (workSet.find(*it) == workSet.end()
+                            && sccSet.find(*it) != sccSet.end()) {
                             workSet.insert(*it);
                             worklist.push_back(*it);
                         }
