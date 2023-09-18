@@ -4,6 +4,28 @@
 
 typedef long long ll;
 
+using doms_t = std::optional<std::set<std::string>>;
+
+std::string stringify(doms_t t) {
+        if(!t.has_value()){
+            return "{all blocks}";
+        }else{
+            std::ostringstream ans;
+            auto begin = t.value().begin();
+            auto end = t.value().end();
+            ans << "{";
+            ans << *begin;
+            begin++;
+            while(begin != end){
+                ans << ",";
+                ans << *begin;
+                begin++;
+            }
+            ans << "}";
+            return ans.str();
+        }
+    }
+
 class DominatorAnalysis {
 public:
     using doms_t = std::optional<std::set<std::string>>;
@@ -12,6 +34,8 @@ public:
     std::vector<doms_t> block_in;
     std::vector<doms_t> block_out;
     int count;
+
+    explicit DominatorAnalysis(CFG *cfg) : cfg(cfg) {}
 
     doms_t makeTop() {
         return std::make_optional((std::set<std::string>){});
@@ -44,26 +68,6 @@ public:
             res.value().insert(block.blockName);
         }
         return {res, res == old};
-    }
-
-    std::string stringify(doms_t t) {
-        if(!t.has_value()){
-            return "{all blocks}";
-        }else{
-            std::ostringstream ans;
-            auto begin = t.value().begin();
-            auto end = t.value().end();
-            ans << "{";
-            ans << *begin;
-            begin++;
-            while(begin != end){
-                ans << ",";
-                ans << *begin;
-                begin++;
-            }
-            ans << "}";
-            return ans.str();
-        }
     }
 
     void smartAnalyze() {
@@ -125,9 +129,19 @@ public:
         }
     }
 
+    std::string report() {
+        std::vector<std::string> strings;
+        for (int i = 0; i < cfg->blocks.size(); i++) {
+            strings.push_back(string_format("node %d, instr: %s\n", i, cfg->blocks[i].blockName.c_str()));
+            strings.push_back(string_format("in: %s\n", stringify(block_in[i]).c_str()));
+            strings.push_back(string_format("out: %s\n", stringify(block_out[i]).c_str()));
+        }
+        return joinToString(strings.begin(), strings.end(), "", "", "");
+    }
+
     std::string prettifyBlock() {
         return cfg->prettifyBlocks<std::pair<std::vector<doms_t>, std::vector<doms_t>>>(
-            [this](int i, CFG *cfg, std::pair<std::vector<doms_t>, std::vector<doms_t>> block_in_out) {
+            [](int i, CFG *cfg, std::pair<std::vector<doms_t>, std::vector<doms_t>> block_in_out) {
                 auto [block_in, block_out] = block_in_out;
                 auto &blockNodes = cfg->blocks[i].nodes;
                 auto &nodes = cfg->nodes;
@@ -154,5 +168,12 @@ int main(int argc, char* argv[]) {
 
     json prog;
     std::cin >> prog;
+
+    for(auto func : prog["functions"]){
+        CFG cfg(func["name"].get<std::string>(), func["instrs"]);
+        auto analyzer = DominatorAnalysis(&cfg);
+        analyzer.smartAnalyze();
+        printf("%s\n", analyzer.report().c_str());
+    }
 
 }
