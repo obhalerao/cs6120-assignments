@@ -1,0 +1,21 @@
+extract = 'Total times meet called for function (?P<label>.*): (?P<fom>\d+)'
+benchmarks = './benchmarks/adversarial_worklist/*.bril'
+timeout = 15
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "./l4_dataflow -p"
+]
+
+[runs.worklist]
+pipeline = [
+    "bril2json",
+    "./l4_dataflow -w -p"
+]
+
+[runs.smart]
+pipeline = [
+    "bril2json",
+    "./l4_dataflow -s -p",
+]
