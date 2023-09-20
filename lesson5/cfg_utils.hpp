@@ -32,10 +32,11 @@ public:
     std::vector<int> preds;
     std::vector<int> succs;
     std::string blockName;
+    int id;
 
-    CFGBlock(std::string blockName, std::vector<int> nodes) : blockName(blockName), nodes(nodes) {}
+    CFGBlock(std::string blockName, std::vector<int> nodes, int id) : blockName(blockName), nodes(nodes), id(id) {}
 
-    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName){}
+    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName), id(cfgBlock.id){}
 
 };
 
@@ -101,7 +102,7 @@ public:
             for (uint32_t j = blockStarts[i]; j < end; j++) {
                 nodePtrs.push_back(j);
             }
-            blocks.emplace_back(labels[i], nodePtrs);
+            blocks.emplace_back(labels[i], nodePtrs, i);
         }
 
         // populate predecessors and successors in neighboring blocks
@@ -184,77 +185,31 @@ public:
         return ans;
     }
 
-    void populate_dfs() {
-        int i = 0;
-        std::unordered_map<int, int> index;
-        std::unordered_map<int, int> lowlink;
-        std::unordered_set<int> stackSet;
-        std::deque<int> stack;
-        std::deque<std::pair<int, int>> callStack;
-        std::vector<std::vector<int>> SCCs;
-
-        for (int v = 0; v < nodes.size(); v++) {
-            if (index.find(v) == index.end()) {
-                callStack.push_back({v, 0});
-                while (!callStack.empty()) {
-                    std::pair<int, int> pair = callStack.back();
-                    callStack.pop_back();
-                    auto v = pair.first;
-                    auto pi = pair.second;
-                    auto &neighbors = nodes[v].succs;
-
-                    if (pi == 0) {
-                        index[v] = i;
-                        lowlink[v] = i;
-                        i += 1;
-                        stack.push_back(v);
-                        stackSet.insert(v);
-                    } else if (pi > 0) {
-                        int prev = neighbors[pi - 1];
-                        lowlink[v] = std::min(lowlink[v], lowlink[prev]);
-                    }
-
-                    while (pi < neighbors.size() && index.find(neighbors[pi]) != index.end()) {
-                        int w = neighbors[pi];
-                        if (stackSet.find(w) != stackSet.end()) {
-                            lowlink[v] = std::min(lowlink[v], index[w]);
-                        }
-                        pi++;
-                    }
-
-                    if (pi < neighbors.size()) {
-                        int w = neighbors[pi];
-                        callStack.push_back({v, pi + 1});
-                        callStack.push_back({w, 0});
-                        continue;
-                    }
-
-                    if (lowlink[v] == index[v]) {
-                        std::vector<int> scc;
-                        bool keep_going = true;
-                        while (keep_going) {
-                            int w = stack.back();
-                            stack.pop_back();
-                            stackSet.erase(w);
-                            scc.push_back(w);
-                            keep_going = w != v;
-                        }
-                        SCCs.push_back(scc);
-                    }
-
-                }
-            }
-        }
-        dfs_results = SCCs;
-    }
-
-    std::vector<std::vector<int>> dfs() {
+    std::vector<int> dfs() {
         if (!dfs_results.has_value()) populate_dfs();
         return dfs_results.value();
     }
 
 private:
-    std::optional<std::vector<std::vector<int>>> dfs_results;
+    std::optional<std::vector<int>> dfs_results;
+
+    void topsort_dfs(std::vector<int>& topsort, std::vector<bool>& visited, int i) {
+        visited[i] = true;
+        for(int j: blocks[i].succs){
+            if(!visited[j]) topsort_dfs(topsort, visited, j);
+        }
+        topsort.push_back(i);
+    }
+
+    void populate_dfs(){
+        std::vector<int> topsort;
+        std::vector<bool> visited(blocks.size(), false);
+        for(int i = 0; i < blocks.size(); i++){
+            if(!visited[i]) topsort_dfs(topsort, visited, i);
+        }
+        std::reverse(topsort.begin(), topsort.end());
+        dfs_results = topsort;
+    }
 
 };
 
