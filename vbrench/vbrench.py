@@ -1,6 +1,6 @@
 """Simple comparative benchmark runner.
 """
-
+import itertools
 import click
 import tomlkit
 import subprocess
@@ -79,7 +79,7 @@ def get_results(strings, extract_re):
     """
     ret = []
     for s in strings:
-        match = re.search(extract_re, s)
+        match = re.match(extract_re, s)
         if match:
             label = match.group('label')
             fom = match.group('fom')
@@ -134,7 +134,10 @@ def vbrench(config_path, files, jobs):
                     status = 'incorrect'
 
                 # Extract the figure of merit.
-                results = get_results([stdout, stderr], config['extract'])
+                results = get_results(
+                    itertools.chain(stdout.split("\n"), stderr.split("\n")), 
+                    config['extract']
+                )
                 if not results and not status:
                     status = 'missing'
 
