@@ -74,6 +74,7 @@ public:
     }
 
     void naiveAnalyze(){
+        count = 0;
         dominators.clear();
 
         for (int i = 0; i < cfg->blocks.size(); i++) {
@@ -258,6 +259,7 @@ private:
 
     void naive_dfs(std::vector<int> &path, std::set<int> &path_set,
     int i, int n){
+        count++;
         path.push_back(i);
         path_set.insert(i);
         if(i == n){
@@ -291,12 +293,30 @@ int main(int argc, char* argv[]) {
     json prog;
     std::cin >> prog;
 
+    bool profileMode = false;
+    bool naiveMode = false;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-p") {
+            profileMode = true;
+        } else if (arg == "-n") {
+            naiveMode = true;
+        }
+    }
+
     for(auto func : prog["functions"]){
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
         auto analyzer = DominatorAnalysis(&cfg);
-        analyzer.smartAnalyze();
-        // analyzer.naiveAnalyze();
+        if(naiveMode){
+            analyzer.naiveAnalyze();
+        }else{
+            analyzer.smartAnalyze();
+        }
         printf("%s\n", analyzer.report().c_str());
+        if (profileMode) {
+            fprintf(stderr, "Total function calls for function %s: %d\n when computing dominators", func["name"].get<std::string>().c_str(), analyzer.count);
+        }
     }
 
 }

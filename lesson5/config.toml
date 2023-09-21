@@ -1,0 +1,17 @@
+# meant for vbrench, not brench
+
+extract = 'Total function calls for function (?P<label>.*) when computing dominators: (?P<fom>\d+)'
+benchmarks = './benchmarks/*/*.bril'
+timeout = 15
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "./l5_global -p"
+]
+
+[runs.naive]
+pipeline = [
+    "bril2json",
+    "./l5_global -s -p"
+]
