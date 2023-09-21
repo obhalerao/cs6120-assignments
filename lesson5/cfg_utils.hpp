@@ -17,12 +17,13 @@ public:
     json instr;
     std::vector<int> preds;
     std::vector<int> succs;
+    int id;
     CFGNode() = default;
 
-    CFGNode(json instr) : instr(instr) {
+    CFGNode(json instr, int id) : instr(instr), id(id) {
     }
 
-    CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs) {
+    CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs), id(cfgNode.id) {
     }
 };
 
@@ -61,11 +62,13 @@ public:
         // TODO: end block on ret instruction, maybe always put a nop at the end of the function and point rets there?
         bool unreachable = false;  // TODO: decide whether to put these blocks back in and leave them disconnected from the rest of the function
 
+        int idx = 0;
         for (auto instr : instrs) {
             if (unreachable && !instr.contains("label")) {
                 // create a label for this unreachable code
                 if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()) {
-                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                    nodes.emplace_back(json({{"op", "nop"}}), idx); // make previous block non-empty
+                    idx++;
                 }
                 blockStarts.push_back(nodes.size());
                 labels.push_back(pc.generate());
@@ -73,20 +76,25 @@ public:
             }
 
             if (instr.contains("label")) {
-                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size())
-                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()){
+                    nodes.emplace_back(json({{"op", "nop"}}), idx); // make previous block non-empty
+                    idx++;
+                }
                 blockStarts.push_back(nodes.size());
                 labels.push_back(instr["label"]);
                 unreachable = false;
             } else if (instr.contains("op") && (instr["op"] == "jmp" || instr["op"] == "br" || instr["op"] == "ret")) {
-                nodes.emplace_back(instr);
+                nodes.emplace_back(instr, idx);
+                idx++;
                 unreachable = true; // instructions immediately after the end of a basic block are unreachable
             } else {
-                nodes.emplace_back(instr);
+                nodes.emplace_back(instr, idx);
+                idx++;
             }
         }
         if (blockStarts.back() == nodes.size()) {
-            nodes.emplace_back(json({{"op", "nop"}})); // make last block non-empty
+            nodes.emplace_back(json({{"op", "nop"}}), idx); // make last block non-empty
+            idx++;
         }
 
         auto numBlocks = blockStarts.size();
@@ -185,13 +193,19 @@ public:
         return ans;
     }
 
-    std::vector<int> dfs() {
-        if (!dfs_results.has_value()) populate_dfs();
-        return dfs_results.value();
+    std::vector<int> block_dfs() {
+        if (!block_dfs_results.has_value()) populate_dfs();
+        return block_dfs_results.value();
+    }
+
+    std::vector<std::vector<int>> node_dfs() {
+        if (!node_dfs_results.has_value()) populate_node_dfs();
+        return node_dfs_results.value();
     }
 
 private:
-    std::optional<std::vector<int>> dfs_results;
+    std::optional<std::vector<int>> block_dfs_results;
+    std::optional<std::vector<std::vector<int>>> node_dfs_results;
 
     void topsort_dfs(std::vector<int>& topsort, std::vector<bool>& visited, int i) {
         visited[i] = true;
@@ -208,8 +222,309 @@ private:
             if(!visited[i]) topsort_dfs(topsort, visited, i);
         }
         std::reverse(topsort.begin(), topsort.end());
-        dfs_results = topsort;
+        block_dfs_results = topsort;
     }
 
+    void populate_node_dfs() {
+        int i = 0;
+        std::unordered_map<int, int> index;
+        std::unordered_map<int, int> lowlink;
+        std::unordered_set<int> stackSet;
+        std::deque<int> stack;
+        std::deque<std::pair<int, int>> callStack;
+        std::vector<std::vector<int>> SCCs;
+
+        for (int v = 0; v < nodes.size(); v++) {
+            if (index.find(v) == index.end()) {
+                callStack.push_back({v, 0});
+                while (!callStack.empty()) {
+                    std::pair<int, int> pair = callStack.back();
+                    callStack.pop_back();
+                    auto v = pair.first;
+                    auto pi = pair.second;
+                    auto &neighbors = nodes[v].succs;
+
+                    if (pi == 0) {
+                        index[v] = i;
+                        lowlink[v] = i;
+                        i += 1;
+                        stack.push_back(v);
+                        stackSet.insert(v);
+                    } else if (pi > 0) {
+                        int prev = neighbors[pi - 1];
+                        lowlink[v] = std::min(lowlink[v], lowlink[prev]);
+                    }
+
+                    while (pi < neighbors.size() && index.find(neighbors[pi]) != index.end()) {
+                        int w = neighbors[pi];
+                        if (stackSet.find(w) != stackSet.end()) {
+                            lowlink[v] = std::min(lowlink[v], index[w]);
+                        }
+                        pi++;
+                    }
+
+                    if (pi < neighbors.size()) {
+                        int w = neighbors[pi];
+                        callStack.push_back({v, pi + 1});
+                        callStack.push_back({w, 0});
+                        continue;
+                    }
+
+                    if (lowlink[v] == index[v]) {
+                        std::vector<int> scc;
+                        bool keep_going = true;
+                        while (keep_going) {
+                            int w = stack.back();
+                            stack.pop_back();
+                            stackSet.erase(w);
+                            scc.push_back(w);
+                            keep_going = w != v;
+                        }
+                        SCCs.push_back(scc);
+                    }
+
+                }
+            }
+        }
+        node_dfs_results = SCCs;
+    }
+
+};
+
+template<typename T> class DataflowBaseSingleton {
+public:
+    virtual T makeTop() = 0;
+
+    virtual std::pair<T, bool> meet(const CFGNode &node, const std::vector<T> &influencers, const T &old) = 0;
+
+    virtual std::pair<T, bool> transfer(const CFG* const cfg, const CFGNode &node, const T &influence, const T &old) = 0;
+
+    virtual std::string stringify(T t) = 0;
+};
+
+class DataFlowAnalysisBase {
+public:
+    virtual std::string report() { return "dummy-impl"; }
+
+    virtual std::string prettifyBlock() { return "dummy-impl"; }
+
+    virtual void smartAnalyze(bool forwards) { printf("passing\n"); }
+
+    virtual void worklistAnalyze(bool forwards) { printf("passing\n"); }
+
+    virtual void naiveAnalyze(bool forwards) { printf("passing\n"); }
+};
+
+class DataFlowAnalysisAbstract : public DataFlowAnalysisBase {
+public:
+    virtual std::string report() override = 0;
+
+    virtual std::string prettifyBlock() override = 0;
+
+    virtual void smartAnalyze(bool forwards) override = 0;
+
+    virtual void worklistAnalyze(bool forwards) override = 0;
+
+    virtual void naiveAnalyze(bool forwards) override = 0;
+};
+
+template<class DataFlowImpl, typename K>
+class DataFlowAnalysis : public DataFlowAnalysisAbstract {
+public:
+    CFG *cfg;
+    std::vector<K> nodeIn;
+    std::vector<K> nodeOut;
+    DataFlowImpl factory;
+    int count;
+
+    explicit DataFlowAnalysis(CFG *cfg) : factory(), cfg(cfg) {
+        static_assert(std::is_base_of<DataflowBaseSingleton<K>, DataFlowImpl>::value, "derived from wrong class??");
+    }
+
+    virtual std::string report() override {
+        std::vector<std::string> strings;
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            strings.push_back(string_format("node %d, instr: %s\n", i, instr_to_string(cfg->nodes[i].instr).c_str()));
+            strings.push_back(string_format("in: %s\n", factory.stringify(nodeIn[i]).c_str()));
+            strings.push_back(string_format("out: %s\n", factory.stringify(nodeOut[i]).c_str()));
+        }
+        return joinToString(strings.begin(), strings.end(), "", "", "");
+    }
+
+    virtual std::string prettifyBlock() override {
+        return cfg->prettifyBlocks<std::pair<std::vector<K>, std::vector<K>>>(
+            [](int i, CFG *cfg, std::pair<std::vector<K>, std::vector<K>> nodeInOut) {
+                auto [nodeIn, nodeOut] = nodeInOut;
+                auto &blockNodes = cfg->blocks[i].nodes;
+                auto &nodes = cfg->nodes;
+
+                std::vector<std::string> nodeStrings;
+                for (auto it = blockNodes.begin(); it != blockNodes.end(); it++) {
+                    nodeStrings.push_back(instr_to_string(nodes[*it].instr));
+                }
+                
+                return string_format(
+                    "shape=Mrecord, label=\"{{%s}|%s|{%s}}\"",
+                    DataFlowImpl().stringify(nodeIn[blockNodes.front()]).c_str(),
+                    joinToString(nodeStrings.begin(), nodeStrings.end(), "", "\\n", "").c_str(),
+                    DataFlowImpl().stringify(nodeOut[blockNodes.back()]).c_str()
+                );
+            },
+            {nodeIn, nodeOut}
+        );
+    }
+
+
+    virtual void smartAnalyze(bool forwards) override {
+        count = 0;
+        nodeIn.clear();
+        nodeOut.clear();
+
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            nodeIn.push_back(factory.makeTop());
+            nodeOut.push_back(factory.makeTop());
+        }
+
+
+        auto SCCs = cfg->node_dfs(); 
+        if (forwards) {
+            std::reverse(SCCs.begin(), SCCs.end());
+        }
+
+        for (auto iter = SCCs.begin(); iter != SCCs.end(); iter++) {
+            auto &scc = *iter;
+            std::unordered_set<int> sccSet;
+            std::deque<int> worklist;
+            std::unordered_set<int> workSet;
+            for (auto it = scc.begin(); it != scc.end(); it++) {
+                worklist.push_back(*it);
+                workSet.insert(*it);
+                sccSet.insert(*it);
+            }
+
+            while (worklist.size() != 0) {
+                count++;
+                auto v = worklist.front();
+                worklist.pop_front();
+                workSet.erase(v);
+                auto node = cfg->nodes[v];
+
+                std::vector<K> preds;
+                for (auto predNodePtr: (forwards ? node.preds : node.succs)) {
+                    preds.push_back(nodeOut[predNodePtr]);
+                }
+
+                auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[v] : nodeOut[v]));
+                auto transferRes = factory.transfer(cfg, node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
+
+                if (forwards) {
+                    nodeIn[v] = meetRes.first;
+                    nodeOut[v] = transferRes.first;
+                } else {
+                    nodeOut[v] = meetRes.first;
+                    nodeIn[v] = transferRes.first;
+                }
+
+                if (!meetRes.second || !transferRes.second) {
+                    auto &nextNodes = forwards ? node.succs : node.preds;
+                    for (auto it = nextNodes.begin(); it != nextNodes.end(); it++) {
+                        if (workSet.find(*it) == workSet.end()
+                            && sccSet.find(*it) != sccSet.end()) {
+                            workSet.insert(*it);
+                            worklist.push_back(*it);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    virtual void worklistAnalyze(bool forwards) override {
+        count = 0;
+        nodeIn.clear();
+        nodeOut.clear();
+        std::deque<int> worklist;
+        std::unordered_set<int> workSet;
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            nodeIn.push_back(factory.makeTop());
+            nodeOut.push_back(factory.makeTop());
+            worklist.push_back(i);
+            workSet.insert(i);
+        }
+
+        while (worklist.size() != 0) {
+            count++;
+            auto v = worklist.front();
+            worklist.pop_front();
+            workSet.erase(v);
+            auto node = cfg->nodes[v];
+
+            std::vector<K> preds;
+            for (auto predNodePtr: (forwards ? node.preds : node.succs)) {
+                preds.push_back(nodeOut[predNodePtr]);
+            }
+
+            auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[v] : nodeOut[v]));
+            auto transferRes = factory.transfer(cfg, node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
+
+            if (forwards) {
+                nodeIn[v] = meetRes.first;
+                nodeOut[v] = transferRes.first;
+            } else {
+                nodeOut[v] = meetRes.first;
+                nodeIn[v] = transferRes.first;
+            }
+
+            if (!meetRes.second || !transferRes.second) {
+                auto &nextNodes = forwards ? node.succs : node.preds;
+                for (auto it = nextNodes.begin(); it != nextNodes.end(); it++) {
+                    if (workSet.find(*it) == workSet.end()) {
+                        workSet.insert(*it);
+                        worklist.push_back(*it);
+                    }
+                }
+            }
+        } 
+
+    }
+
+    virtual void naiveAnalyze(bool forwards) override {
+        count = 0;
+        nodeIn.clear();
+        nodeOut.clear();
+        for (int i = 0; i < cfg->nodes.size(); i++) {
+            nodeIn.push_back(factory.makeTop());
+            nodeOut.push_back(factory.makeTop());
+        }
+
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < cfg->nodes.size(); i++) {
+                count++;
+                auto node = cfg->nodes[i];
+
+                std::vector<K> preds;
+                for (auto predNodePtr: (forwards ? node.preds : node.succs)) {
+                    preds.push_back(nodeOut[predNodePtr]);
+                }
+
+                auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[i] : nodeOut[i]));
+                auto transferRes = factory.transfer(cfg, node, meetRes.first, (forwards ? nodeOut[i] : nodeIn[i]));
+
+                if (forwards) {
+                    nodeIn[i] = meetRes.first;
+                    nodeOut[i] = transferRes.first;
+                } else {
+                    nodeOut[i] = meetRes.first;
+                    nodeIn[i] = transferRes.first;
+                }
+                
+                if (!meetRes.second || !transferRes.second) {
+                    changed = true;
+                }
+            }
+        }
+    }
 };
 

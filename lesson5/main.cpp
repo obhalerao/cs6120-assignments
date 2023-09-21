@@ -1,6 +1,7 @@
 #include "cfg_utils.hpp"
 #include <cstdio>
 #include <set>
+#include <map>
 
 typedef long long ll;
 
@@ -36,6 +37,7 @@ public:
     std::vector<doms_t> dominators;
     std::vector<std::vector<int>> dominator_tree;
     std::vector<std::set<int>> frontier;
+    std::map<std::pair<int, int>, std::set<int>> natural_loops;
     int count;
 
     explicit DominatorAnalysis(CFG *cfg) : cfg(cfg) {}
@@ -88,6 +90,7 @@ public:
         }
         compute_tree();
         compute_frontier();
+        compute_natural_loops();
 
     }
 
@@ -104,7 +107,7 @@ public:
         block_in[0] = std::make_optional((std::set<int>){});
         dominators[0] = std::make_optional((std::set<int>){0});
 
-        auto blockOrder = cfg->dfs();
+        auto blockOrder = cfg->block_dfs();
 
         std::deque<int> worklist;
         std::unordered_set<int> workSet;
@@ -144,7 +147,7 @@ public:
         }
         compute_tree();
         compute_frontier();
-
+        compute_natural_loops();
     }
 
     std::string report() {
@@ -198,6 +201,61 @@ public:
         if(edges.size() == 0) strings.push_back("N/A\n");
         for(auto edge: edges){
             strings.push_back(string_format("%d -> %d\n", edge.first, edge.second));
+        }
+        return joinToString(strings.begin(), strings.end(), "", "", "");
+    }
+
+    void compute_natural_loops(){
+        std::map<std::pair<int, int>, std::set<int>> res;
+        for(int i = 0; i < cfg->blocks.size(); i++){
+            for(int e: cfg->blocks[i].succs){
+                if(dominators[i].value().find(e) != dominators[i].value().end()){
+                    // found a back-edge
+                    std::deque<int> q;
+                    std::set<int> seen;
+                    q.push_back(i);
+                    while(!q.empty()){
+                        int v = q.front();
+                        q.pop_front();
+                        if(seen.find(v) != seen.end()) continue;
+                        seen.insert(v);
+                        for(int p: cfg->blocks[v].preds){
+                            if(p == e) continue;
+                            q.push_back(p);
+                        }
+                    }
+                    seen.insert(e);
+                    res[{i, e}] = seen;
+                }
+            }           
+        }
+        natural_loops = res;
+    }
+
+    std::string report_natural_loops(){
+        std::vector<std::string> strings;
+        strings.push_back("Natural loops:\n");
+        if(natural_loops.size() == 0){
+            strings.push_back("N/A");
+            return joinToString(strings.begin(), strings.end(), "", "", "");
+        }
+        for(auto entry: natural_loops){
+            std::set<int> t = entry.second;
+            std::ostringstream ans;
+            ans << "(" << entry.first.first << "," << entry.first.second << "): ";
+            if(t.size() == 0) return "{}";
+            auto begin = t.begin();
+            auto end = t.end();
+            ans << "{";
+            ans << *begin;
+            begin++;
+            while(begin != end){
+                ans << ",";
+                ans << *begin;
+                begin++;
+            }
+            ans << "}\n";
+            strings.push_back(ans.str());
         }
         return joinToString(strings.begin(), strings.end(), "", "", "");
     }
@@ -288,6 +346,8 @@ private:
 
 };
 
+
+
 int main(int argc, char* argv[]) {
 
     json prog;
@@ -314,6 +374,7 @@ int main(int argc, char* argv[]) {
             analyzer.smartAnalyze();
         }
         printf("%s\n", analyzer.report().c_str());
+        printf("%s\n", analyzer.report_natural_loops().c_str());
         if (profileMode) {
             fprintf(stderr, "Total function calls for function %s when computing dominators: %d\n", func["name"].get<std::string>().c_str(), analyzer.count);
         }
