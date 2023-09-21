@@ -264,12 +264,14 @@ private:
             if(!dominators[n].has_value()){
                 dominators[n] = std::make_optional(path_set);
             }else{
-                for(int j: path_set){
-                    if(dominators[n].value().find(j)
-                    != dominators[n].value().end()){
-                        dominators[n].value().erase(j);
+                std::vector<int> toRemove;
+                for(int j: dominators[n].value()){
+                    if(path_set.find(j)
+                    == path_set.end()){
+                        toRemove.push_back(j);
                     }
                 }
+                for(int val: toRemove) dominators[n].value().erase(val);
             }
         }else{
             for(auto j: cfg->blocks[i].succs){
