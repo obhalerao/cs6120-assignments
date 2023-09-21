@@ -315,7 +315,7 @@ int main(int argc, char* argv[]) {
         }
         printf("%s\n", analyzer.report().c_str());
         if (profileMode) {
-            fprintf(stderr, "Total function calls for function %s: %d\n when computing dominators", func["name"].get<std::string>().c_str(), analyzer.count);
+            fprintf(stderr, "Total function calls for function %s when computing dominators: %d\n", func["name"].get<std::string>().c_str(), analyzer.count);
         }
     }
 

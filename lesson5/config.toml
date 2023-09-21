@@ -13,5 +13,5 @@ pipeline = [
 [runs.naive]
 pipeline = [
     "bril2json",
-    "./l5_global -s -p"
+    "./l5_global -n -p"
 ]
