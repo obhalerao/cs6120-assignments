@@ -73,6 +73,23 @@ public:
         return {res, res == old};
     }
 
+    void naiveAnalyze(){
+        dominators.clear();
+
+        for (int i = 0; i < cfg->blocks.size(); i++) {
+            dominators.push_back(makeTop());
+        }
+
+        for(int i = 0; i < cfg->blocks.size(); i++){
+            std::vector<int> path;
+            std::set<int> path_set;
+            naive_dfs(path, path_set, 0, i);
+        }
+        compute_tree();
+        compute_frontier();
+
+    }
+
     void smartAnalyze() {
         count = 0;
         block_in.clear();
@@ -239,6 +256,32 @@ private:
         }
     }
 
+    void naive_dfs(std::vector<int> &path, std::set<int> &path_set,
+    int i, int n){
+        path.push_back(i);
+        path_set.insert(i);
+        if(i == n){
+            if(!dominators[n].has_value()){
+                dominators[n] = std::make_optional(path_set);
+            }else{
+                for(int j: path_set){
+                    if(dominators[n].value().find(j)
+                    != dominators[n].value().end()){
+                        dominators[n].value().erase(j);
+                    }
+                }
+            }
+        }else{
+            for(auto j: cfg->blocks[i].succs){
+                if(path_set.find(j) == path_set.end()){
+                    naive_dfs(path, path_set, j, n);
+                }
+            }
+        }
+        path.pop_back();
+        path_set.erase(i);
+    }
+
 };
 
 int main(int argc, char* argv[]) {
@@ -250,6 +293,7 @@ int main(int argc, char* argv[]) {
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
         auto analyzer = DominatorAnalysis(&cfg);
         analyzer.smartAnalyze();
+        // analyzer.naiveAnalyze();
         printf("%s\n", analyzer.report().c_str());
     }
 
