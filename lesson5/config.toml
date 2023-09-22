@@ -7,11 +7,11 @@ timeout = 15
 [runs.baseline]
 pipeline = [
     "bril2json",
-    "./l5_global -p"
+    "./l5_global -n -p"
 ]
 
-[runs.naive]
+[runs.smart]
 pipeline = [
     "bril2json",
-    "./l5_global -n -p"
+    "./l5_global -p"
 ]
