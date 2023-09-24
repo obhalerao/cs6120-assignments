@@ -88,7 +88,7 @@ public:
         }
 
 
-        auto SCCs = cfg->dfs(); 
+        auto SCCs = cfg->node_dfs(); 
         if (forwards) {
             std::reverse(SCCs.begin(), SCCs.end());
         }

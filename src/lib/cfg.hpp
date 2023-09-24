@@ -3,6 +3,7 @@
 
 #include "json.hpp"
 #include "cfg_utils.hpp"
+
 using json = nlohmann::json;
 
 class CFGNode {
@@ -10,9 +11,10 @@ public:
     json instr;
     std::vector<int> preds;
     std::vector<int> succs;
+    int id;
     CFGNode() ;
 
-    CFGNode(json instr);
+    CFGNode(json instr, int id);
 
     CFGNode(const CFGNode &cfgNode) ;
 };
@@ -23,8 +25,9 @@ public:
     std::vector<int> preds;
     std::vector<int> succs;
     std::string blockName;
+    int id;
 
-    CFGBlock(std::string blockName, std::vector<int> nodes);
+    CFGBlock(std::string blockName, std::vector<int> nodes, int id);
 
     CFGBlock(const CFGBlock &cfgBlock);
 
@@ -46,28 +49,36 @@ public:
     // T is a catch-all for any additional args you may want to pass into the printer
     template<typename T> std::string prettifyBlocks(std::string (*f)(int, CFG*, T), T t) {
         std::vector<std::string> lines;
-        lines.push_back(string_format("label = \"%s\"", funcName.c_str()));
+        lines.push_back(string_format<const char*>("label = \"%s\"", funcName.c_str()));
         for (int i = 0; i < blocks.size(); i++) {
-            lines.push_back(string_format("%s_block_%d [%s]", funcName.c_str(), i, f(i, this, t).c_str()));
+            lines.push_back(string_format<const char*, int, const char*>("%s_block_%d [%s]", funcName.c_str(), i, f(i, this, t).c_str()));
         }
         for (int i = 0; i < blocks.size(); i++) {
             for (auto j : blocks[i].succs) {
-                lines.push_back(string_format("%s_block_%d -> %s_block_%d", funcName.c_str(), i, funcName.c_str(), j));
+                lines.push_back(string_format<const char*, int, const char*, int>("%s_block_%d -> %s_block_%d", funcName.c_str(), i, funcName.c_str(), j));
             }
         }
 
         auto lines_str = joinToString<std::vector<std::string>::iterator>(lines.begin(), lines.end(), "", "\n\t", "");
 
-        std::string ans = string_format("subgraph cluster_%s_blocks {\n\t%s\n}\n", funcName.c_str(), lines_str.c_str());
+        std::string ans = string_format<const char*, const char*>("subgraph cluster_%s_blocks {\n\t%s\n}\n", funcName.c_str(), lines_str.c_str());
         return ans;
-    };
+    }
+
+    std::vector<std::vector<int>> node_dfs();
+
+    std::vector<int> block_dfs();
+
+
+private:
+    std::optional<std::vector<int>> block_dfs_results;
+    std::optional<std::vector<std::vector<int>>> node_dfs_results;
+
+    void topsort_dfs(std::vector<int>& topsort, std::vector<bool>& visited, int i);
 
     void populate_dfs();
 
-    std::vector<std::vector<int>> dfs();
-
-private:
-    std::optional<std::vector<std::vector<int>>> dfs_results;
+    void populate_node_dfs();
 
 };
 
