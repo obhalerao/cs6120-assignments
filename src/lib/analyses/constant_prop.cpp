@@ -1,5 +1,5 @@
 #include "../dataflow_analysis.hpp"
-#include "../cfg_utils.cpp"
+#include "../cfg_utils.hpp"
 
 typedef long long ll;
 

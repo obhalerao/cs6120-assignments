@@ -1,6 +1,6 @@
 #include "../dataflow_analysis.hpp"
 #include <unordered_set>
-#include "../cfg_utils.cpp"
+#include "../cfg_utils.hpp"
 
 class DefinedVarsAnalysis : DataflowBaseSingleton<std::unordered_set<std::string>> {
 public:
