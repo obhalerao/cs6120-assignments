@@ -26,6 +26,7 @@ add_executable(l2 "${PROJECT_SOURCE_DIR}/lesson2/count_branches.cpp")
 add_executable(l3_tdce "${PROJECT_SOURCE_DIR}/lesson3/tdce.cpp")
 add_executable(l3_lvn "${PROJECT_SOURCE_DIR}/lesson3/lvn.cpp")
 add_executable(l4_dataflow "${PROJECT_SOURCE_DIR}/src/main/lesson4.cpp" $<TARGET_OBJECTS:cfg> $<TARGET_OBJECTS:dataflow_analysis>)
+add_executable(l5_global "${PROJECT_SOURCE_DIR}/lesson5/main.cpp")
 add_executable(l6_test "${PROJECT_SOURCE_DIR}/lesson6_boost/use_boost.cpp" $<TARGET_OBJECTS:cfg>)
 
 target_link_libraries(l4_dataflow -fsanitize=address -static-libasan)
