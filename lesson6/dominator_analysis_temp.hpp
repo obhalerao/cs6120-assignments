@@ -1,5 +1,5 @@
 #include "../src/lib/cfg.hpp"
-#include "helpers.cpp"
+#include "../src/lib/cfg_utils.hpp"
 #include <cstdio>
 #include <set>
 #include <map>
