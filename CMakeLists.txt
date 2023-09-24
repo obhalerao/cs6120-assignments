@@ -18,7 +18,7 @@ add_library(dataflow_analysis OBJECT "${PROJECT_SOURCE_DIR}/src/lib/dataflow_ana
 add_library(l3_helpers OBJECT "${PROJECT_SOURCE_DIR}/src/lib/lesson3/helpers.cpp")
 
 # add the executables
-add_executable(l2 "${PROJECT_SOURCE_DIR}/lesson2/count_branches.cpp")
+add_executable(l2 "${PROJECT_SOURCE_DIR}/src/main/lesson2.cpp")
 add_executable(l3_tdce "${PROJECT_SOURCE_DIR}/src/main/lesson3_tdce.cpp")
 add_executable(l3_lvn "${PROJECT_SOURCE_DIR}/src/main/lesson3_lvn.cpp")
 add_executable(l4_dataflow "${PROJECT_SOURCE_DIR}/src/main/lesson4.cpp")
