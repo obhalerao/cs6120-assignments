@@ -9,9 +9,10 @@ public:
     json instr;
     std::vector<int> preds;
     std::vector<int> succs;
+    int id;
     CFGNode() ;
 
-    CFGNode(json instr);
+    CFGNode(json instr, int id);
 
     CFGNode(const CFGNode &cfgNode) ;
 };
@@ -22,8 +23,9 @@ public:
     std::vector<int> preds;
     std::vector<int> succs;
     std::string blockName;
+    int id;
 
-    CFGBlock(std::string blockName, std::vector<int> nodes);
+    CFGBlock(std::string blockName, std::vector<int> nodes, int id);
 
     CFGBlock(const CFGBlock &cfgBlock);
 
@@ -45,12 +47,20 @@ public:
     // T is a catch-all for any additional args you may want to pass into the printer
     template<typename T> std::string prettifyBlocks(std::string (*f)(int, CFG*, T), T t);
 
-    void populate_dfs();
+    std::vector<std::vector<int>> node_dfs();
 
-    std::vector<std::vector<int>> dfs();
+    std::vector<int> block_dfs();
+
 
 private:
-    std::optional<std::vector<std::vector<int>>> dfs_results;
+    std::optional<std::vector<int>> block_dfs_results;
+    std::optional<std::vector<std::vector<int>>> node_dfs_results;
+
+    void topsort_dfs(std::vector<int>& topsort, std::vector<bool>& visited, int i);
+
+    void populate_dfs();
+
+    void populate_node_dfs();
 
 };
 

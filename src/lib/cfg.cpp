@@ -20,14 +20,14 @@ using json = nlohmann::json;
 
 CFGNode::CFGNode() = default;
 
-CFGNode::CFGNode(json instr) : instr(instr) {}
+CFGNode::CFGNode(json instr, int id) : instr(instr), id(id) {}
 
-CFGNode::CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs) {}
+CFGNode::CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs), id(cfgNode.id) {}
 
 
-CFGBlock::CFGBlock(std::string blockName, std::vector<int> nodes) : blockName(blockName), nodes(nodes) {}
+CFGBlock::CFGBlock(std::string blockName, std::vector<int> nodes, int id) : blockName(blockName), nodes(nodes), id(id) {}
 
-CFGBlock::CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName){}
+CFGBlock::CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName), id(cfgBlock.id){}
 
 CFG::CFG(std::string funcName, json& instrs) : funcName(funcName) {
         std::string prefix = "unreachable_anti_clobber_label";
@@ -43,11 +43,13 @@ CFG::CFG(std::string funcName, json& instrs) : funcName(funcName) {
         // TODO: end block on ret instruction, maybe always put a nop at the end of the function and point rets there?
         bool unreachable = false;  // TODO: decide whether to put these blocks back in and leave them disconnected from the rest of the function
 
+        int idx = 0;
         for (auto instr : instrs) {
             if (unreachable && !instr.contains("label")) {
                 // create a label for this unreachable code
                 if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()) {
-                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                    nodes.emplace_back(json({{"op", "nop"}}), idx); // make previous block non-empty
+                    idx++;
                 }
                 blockStarts.push_back(nodes.size());
                 labels.push_back(pc.generate());
@@ -55,20 +57,25 @@ CFG::CFG(std::string funcName, json& instrs) : funcName(funcName) {
             }
 
             if (instr.contains("label")) {
-                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size())
-                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()){
+                    nodes.emplace_back(json({{"op", "nop"}}), idx); // make previous block non-empty
+                    idx++;
+                }
                 blockStarts.push_back(nodes.size());
                 labels.push_back(instr["label"]);
                 unreachable = false;
             } else if (instr.contains("op") && (instr["op"] == "jmp" || instr["op"] == "br" || instr["op"] == "ret")) {
-                nodes.emplace_back(instr);
+                nodes.emplace_back(instr, idx);
+                idx++;
                 unreachable = true; // instructions immediately after the end of a basic block are unreachable
             } else {
-                nodes.emplace_back(instr);
+                nodes.emplace_back(instr, idx);
+                idx++;
             }
         }
         if (blockStarts.back() == nodes.size()) {
-            nodes.emplace_back(json({{"op", "nop"}})); // make last block non-empty
+            nodes.emplace_back(json({{"op", "nop"}}), idx); // make last block non-empty
+            idx++;
         }
 
         auto numBlocks = blockStarts.size();
@@ -84,7 +91,7 @@ CFG::CFG(std::string funcName, json& instrs) : funcName(funcName) {
             for (uint32_t j = blockStarts[i]; j < end; j++) {
                 nodePtrs.push_back(j);
             }
-            blocks.emplace_back(labels[i], nodePtrs);
+            blocks.emplace_back(labels[i], nodePtrs, i);
         }
 
         // populate predecessors and successors in neighboring blocks
@@ -167,7 +174,7 @@ CFG::CFG(std::string funcName, json& instrs) : funcName(funcName) {
         return ans;
     }
 
-void CFG::populate_dfs() {
+void CFG::populate_node_dfs() {
     int i = 0;
     std::unordered_map<int, int> index;
     std::unordered_map<int, int> lowlink;
@@ -228,10 +235,33 @@ void CFG::populate_dfs() {
             }
         }
     }
-    dfs_results = SCCs;
+    node_dfs_results = SCCs;
 }
 
-std::vector<std::vector<int>> CFG::dfs() {
-    if (!dfs_results.has_value()) populate_dfs();
-    return dfs_results.value();
+void CFG::topsort_dfs(std::vector<int>& topsort, std::vector<bool>& visited, int i) {
+    visited[i] = true;
+    for(int j: blocks[i].succs){
+        if(!visited[j]) topsort_dfs(topsort, visited, j);
+    }
+    topsort.push_back(i);
+}
+
+void CFG::populate_dfs(){
+        std::vector<int> topsort;
+        std::vector<bool> visited(blocks.size(), false);
+        for(int i = 0; i < blocks.size(); i++){
+            if(!visited[i]) topsort_dfs(topsort, visited, i);
+        }
+        std::reverse(topsort.begin(), topsort.end());
+        block_dfs_results = topsort;
+    }
+
+std::vector<int> CFG::block_dfs() {
+    if (!block_dfs_results.has_value()) populate_dfs();
+    return block_dfs_results.value();
+}
+
+std::vector<std::vector<int>> CFG::node_dfs() {
+    if (!node_dfs_results.has_value()) populate_node_dfs();
+    return node_dfs_results.value();
 }
