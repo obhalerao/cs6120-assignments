@@ -1,7 +1,8 @@
+#ifdef IM_BAD__
 #include <unordered_set>
 #include <deque>
 #include "cfg.hpp"
-#include "cfg_utils.cpp"
+#include "cfg_utils.hpp"
 #include "dataflow_analysis.hpp"
 
 template<typename T> T DataflowBaseSingleton<T>::makeTop() = 0;
@@ -225,3 +226,4 @@ template<class DataFlowImpl, typename K> DataFlowAnalysis<DataFlowImpl, K>::Data
             }
         }
     }
+#endif

@@ -1,4 +1,4 @@
-#include "helpers.hpp"
+#include "../lib/lesson3/helpers.hpp"
 #include <iostream>
 #include <set>
 #include <vector>

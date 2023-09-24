@@ -1,29 +1,21 @@
-#ifndef CFG_UTILS_
-#define CFG_UTILS_
-
 #include <string>
 #include <unordered_map>
 #include <algorithm>
 #include "json.hpp"
+#include "cfg_utils.hpp"
 
 using json = nlohmann::json;
 
 // created by ChatGPT, https://chat.openai.com/share/c895b934-964d-4fac-94cd-05f00a233ba7
-class PrefixCounter {
-public:
-    PrefixCounter(const std::string& prefix) : prefix(prefix), count(0) {}
+PrefixCounter::PrefixCounter(const std::string& prefix) : prefix(prefix), count(0) {}
 
-    std::string generate() {
-        std::string result = prefix + "_" + std::to_string(count);
-        count++;
-        return result;
-    }
+std::string PrefixCounter::generate() {
+    std::string result = prefix + "_" + std::to_string(count);
+    count++;
+    return result;
+}
 
-private:
-    std::string prefix;
-    int count;
-};
-
+#ifdef IM_BAD__
 // originally created by ChatGPT, https://chat.openai.com/share/c895b934-964d-4fac-94cd-05f00a233ba7
 template <typename IteratorT> std::string joinToString(IteratorT begin,
                          IteratorT end,
@@ -48,6 +40,7 @@ template <typename IteratorT> std::string joinToString(IteratorT begin,
     return oss.str();
 }
 
+
 // from https://stackoverflow.com/a/26221725
 template<typename ... Args>
 std::string string_format(const std::string& format, Args ... args)
@@ -59,6 +52,12 @@ std::string string_format(const std::string& format, Args ... args)
     std::snprintf( buf.get(), size, format.c_str(), args ... );
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
+// template std::string string_format<const char*, int, const char*, int>(const std::string& format, const char* a1, int a2, const char* a3, int a4);
+// template std::string string_format<const char*, int, const char*>(const std::string& format, const char* a1, int a3, const char* a2);
+// template std::string string_format<const char*, const char*>(const std::string& format, const char* a1, const char* a2);
+// template std::string string_format<const char*, const char*>(const std::string& format, const char* a1, const char* a2);
+
+#endif
 
 std::string lower(std::string data) {
     std::string ret = std::string(data);
@@ -156,5 +155,3 @@ std::string instr_to_string(json instr) {
         }
     }
 }
-
-#endif
