@@ -266,17 +266,20 @@ private:
 
     void compute_tree(){
         std::vector<std::vector<int>> edges(cfg->blocks.size());
-        for(int i = 0; i < cfg->blocks.size(); i++){
-            std::unordered_set<int> preds;
-            for(auto pred: cfg->blocks[i].preds) preds.insert(pred);
+        for(int i = 1; i < cfg->blocks.size(); i++){
+            int maxDom = -1;
+            int domCnt = 0;
             if(!dominators[i].has_value()) continue;
             for(auto dom: dominators[i].value()){
-                int a = dom;
-                int b = i;
-                if(preds.find(dom) == preds.end()) continue;
-                edges[a].push_back(b);
-                edges[b].push_back(a);
+                if(dom == i) continue;
+                if(dominators[dom].has_value()
+                && dominators[dom].value().size() > domCnt){
+                    domCnt = dominators[dom].value().size();
+                    maxDom = dom;
+                }
             }
+            edges[i].push_back(maxDom);
+            edges[maxDom].push_back(i);
         }
         dominator_tree = edges;
     }
