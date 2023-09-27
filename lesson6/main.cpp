@@ -73,14 +73,13 @@ json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer){
 
 void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int parent_id,
   std::map<std::string, std::stack<std::string>> &variable_names,
-  std::map<std::string, PrefixCounter*> &counters){
+  std::map<std::string, PrefixCounter*> &counters,
+  std::map<int, std::string> orig_node_label){
   std::map<std::string, int> totals;
   for(auto node_id: cfg.blocks[block_id].nodes){
     CFGNode &cur_node = cfg.nodes[node_id];
-    if(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi"){
-      continue;
-    }
-    if(cur_node.instr.contains("args")){
+    if(cur_node.instr.contains("args")
+      && !(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi")){
       json new_args;
       for(std::string arg: cur_node.instr["args"]){
         std::string new_name = variable_names[arg].top();
@@ -104,14 +103,14 @@ void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int pare
       if(!(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi")){
         break;
       }
-      cur_node.instr["args"].push_back(variable_names[cur_node.instr["dest"]].top());
+      cur_node.instr["args"].push_back(variable_names[orig_node_label[cur_node.id]].top());
       cur_node.instr["labels"].push_back(cfg.blocks[block_id].blockName);
     }
   }
 
   for(auto child: analyzer.dominator_tree[block_id]){
     if(child == parent_id) continue;
-    relabel_block(cfg, analyzer, child, block_id, variable_names, counters);
+    relabel_block(cfg, analyzer, child, block_id, variable_names, counters, orig_node_label);
   }
 
   for(auto entry: totals){
@@ -145,7 +144,13 @@ void relabel_vars(CFG &cfg, DominatorAnalysis &analyzer, std::set<std::string> &
     PrefixCounter* pc = new PrefixCounter(prefix + "_" + var);
     counters[var] = pc;
   }
-  relabel_block(cfg, analyzer, 0, -1, variable_names, counters);
+  std::map<int, std::string> orig_labels;
+  for(auto node: cfg.nodes){
+    if(node.instr.contains("op") && node.instr["op"] == "phi"){
+      orig_labels[node.id] = node.instr["dest"];
+    }
+  }
+  relabel_block(cfg, analyzer, 0, -1, variable_names, counters, orig_labels);
   for(auto var: vars){
     delete counters[var];
   }
