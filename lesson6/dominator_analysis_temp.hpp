@@ -209,6 +209,7 @@ public:
     void compute_natural_loops(){
         std::map<std::pair<int, int>, std::set<int>> res;
         for(int i = 0; i < cfg->blocks.size(); i++){
+            if(!dominators[i].has_value()) continue;
             for(int e: cfg->blocks[i].succs){
                 if(dominators[i].value().find(e) != dominators[i].value().end()){
                     // found a back-edge
