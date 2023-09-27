@@ -99,12 +99,11 @@ void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int pare
   }
 
   for(auto succ: cfg.blocks[block_id].succs){
-    for(auto node_id: cfg.blocks[block_id].nodes){
+    for(auto node_id: cfg.blocks[succ].nodes){
       CFGNode &cur_node = cfg.nodes[node_id];
       if(!(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi")){
         break;
       }
-      std::cout << "HI!!!!!!!!!!!" << std::endl;
       cur_node.instr["args"].push_back(variable_names[cur_node.instr["dest"]].top());
       cur_node.instr["labels"].push_back(cfg.blocks[block_id].blockName);
     }
@@ -168,6 +167,9 @@ int main(int argc, char* argv[]){
       }
   }
 
+  json new_prog;
+
+
   for(auto func : prog["functions"]){
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
         auto analyzer = DominatorAnalysis(&cfg);
@@ -178,6 +180,11 @@ int main(int argc, char* argv[]){
         new_analyzer.smartAnalyze();
         std::set<std::string> vars = get_vars(new_instrs);
         relabel_vars(new_cfg, new_analyzer, vars);
-        std::cout << new_cfg.toInstrs() << std::endl;
+        json new_func = func;
+        new_func["instrs"] = new_cfg.toInstrs();
+        new_prog["functions"].push_back(new_func);
+        // std::cout << new_cfg.toInstrs() << std::endl;
     }
+    
+    std::cout << new_prog << std::endl;
 }
