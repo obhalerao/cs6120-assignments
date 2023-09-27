@@ -58,7 +58,7 @@ json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer){
   for(auto blk: cfg.blocks){
     json label;
     label["label"] = blk.blockName;
-    instrs.push_back(label);
+    if(blk.id != 0) instrs.push_back(label);
     for(auto var: phi_defs[blk.id]){
       json phi_instr = json{{"op", "phi"}};
       phi_instr["dest"] = var;
@@ -76,7 +76,7 @@ void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int pare
   std::map<std::string, PrefixCounter*> &counters){
   std::map<std::string, int> totals;
   for(auto node_id: cfg.blocks[block_id].nodes){
-    CFGNode cur_node = cfg.nodes[node_id];
+    CFGNode &cur_node = cfg.nodes[node_id];
     if(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi"){
       continue;
     }
@@ -94,15 +94,17 @@ void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int pare
       variable_names[old_dest].push(new_dest);
       if(totals.find(old_dest) == totals.end()) totals[old_dest] = 1;
       else totals[old_dest]++;
+      cur_node.instr["dest"] = new_dest;
     }
   }
 
   for(auto succ: cfg.blocks[block_id].succs){
     for(auto node_id: cfg.blocks[block_id].nodes){
-      CFGNode cur_node = cfg.nodes[node_id];
+      CFGNode &cur_node = cfg.nodes[node_id];
       if(!(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi")){
         break;
       }
+      std::cout << "HI!!!!!!!!!!!" << std::endl;
       cur_node.instr["args"].push_back(variable_names[cur_node.instr["dest"]].top());
       cur_node.instr["labels"].push_back(cfg.blocks[block_id].blockName);
     }
@@ -133,7 +135,7 @@ std::set<std::string> get_vars(json instrs){
   return ans;
 }
 
-void relabel_vars(CFG &cfg, DominatorAnalysis &analyzer, std::set<std::string> vars){
+void relabel_vars(CFG &cfg, DominatorAnalysis &analyzer, std::set<std::string> &vars){
   std::map<std::string, std::stack<std::string>> variable_names;
   std::map<std::string, PrefixCounter*> counters;
   std::string prefix = short_unique_prefix(vars);
