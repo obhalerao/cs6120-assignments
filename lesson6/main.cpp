@@ -8,8 +8,11 @@
 #include "../src/lib/cfg.hpp"
 #include "../src/lib/cfg_utils.hpp"
 
-std::unordered_map<std::string, std::set<int>> get_defs(CFG &cfg){
+std::unordered_map<std::string, std::set<int>> get_defs(CFG &cfg, json func_args){
   std::unordered_map<std::string, std::set<int>> defs_map;
+  for(auto arg: func_args){
+    defs_map[arg["name"]] = {0};
+  }
   int idx = 0;
   for(auto block: cfg.blocks){
     for(auto node: block.nodes){
@@ -51,8 +54,8 @@ std::vector<std::set<std::string>> get_phi_defs(CFG &cfg, DominatorAnalysis &ana
   return phi_defs;
 }
 
-json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer){
-  std::unordered_map<std::string, std::set<int>> defs_map = get_defs(cfg);
+json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args){
+  std::unordered_map<std::string, std::set<int>> defs_map = get_defs(cfg, func_args);
   std::vector<std::set<std::string>> phi_defs = get_phi_defs(cfg, analyzer, defs_map);
   json instrs;
   for(auto blk: cfg.blocks){
@@ -118,8 +121,11 @@ void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int pare
   }
 }
 
-std::set<std::string> get_vars(json instrs){
+std::set<std::string> get_vars(json instrs, json func_args){
   std::set<std::string> ans;
+  for(auto arg: func_args){
+    ans.insert(arg["name"]);
+  }
   for(auto instr: instrs){
     if(instr.contains("dest")){
       ans.insert(instr["dest"]);
@@ -179,11 +185,11 @@ int main(int argc, char* argv[]){
         CFG cfg(func["name"].get<std::string>(), func["instrs"]);
         auto analyzer = DominatorAnalysis(&cfg);
         analyzer.smartAnalyze();
-        json new_instrs = add_phi_nodes(cfg, analyzer);
+        json new_instrs = add_phi_nodes(cfg, analyzer, func["args"]);
         CFG new_cfg(func["name"].get<std::string>(), new_instrs);
         auto new_analyzer = DominatorAnalysis(&new_cfg);
         new_analyzer.smartAnalyze();
-        std::set<std::string> vars = get_vars(new_instrs);
+        std::set<std::string> vars = get_vars(new_instrs, func["args"]);
         relabel_vars(new_cfg, new_analyzer, vars);
         json new_func = func;
         new_func["instrs"] = new_cfg.toInstrs();
