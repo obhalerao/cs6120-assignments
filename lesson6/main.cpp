@@ -1,5 +1,6 @@
 #include <iostream>
 #include <stack>
+#include <queue>
 
 #include "dominator_analysis_temp.hpp"
 #include "helpers.cpp"
@@ -57,7 +58,7 @@ std::vector<std::set<std::pair<std::string,json>>> get_phi_defs(CFG &cfg, Domina
   return phi_defs;
 }
 
-json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args){
+json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args, PrefixCounter* undef_ref){
   std::map<std::pair<std::string,json>, std::set<int>> defs_map = get_defs(cfg, func_args);
   std::vector<std::set<std::pair<std::string,json>>> phi_defs = get_phi_defs(cfg, analyzer, defs_map);
   json instrs;
@@ -180,9 +181,10 @@ std::map<std::string, int> gen_block2index(CFG &cfg){
 }
 
 std::vector<std::vector<std::pair<std::pair<std::string, json>, std::string>>> 
-get_phi_vars(CFG &cfg){
+get_phi_vars(CFG &cfg, json func_args){
   std::map<std::string, int> block2index = gen_block2index(cfg);
   std::vector<std::vector<std::pair<std::pair<std::string, json>, std::string>>> phi_vars;
+  std::map<std::pair<std::string, json>, std::set<int>> var2block = get_defs(cfg, func_args);
   for(auto block: cfg.blocks) phi_vars.push_back({}); 
   for(auto block: cfg.blocks){
     for(auto node_idx: block.nodes){
@@ -190,18 +192,36 @@ get_phi_vars(CFG &cfg){
       if(!(instr.contains("op") && instr["op"] == "phi")) break;
       std::string dest = instr["dest"];
       json b_type = instr["type"];
+      std::map<std::string, std::vector<int>> args2blocks;
       for(int i = 0; i < instr["args"].size(); i++){
+        std::string arg = instr["args"][i];
         int pred = block2index[instr["labels"][i]];
-        phi_vars[pred].push_back({{dest, b_type}, instr["args"][i]});
+        if(args2blocks.find(arg) == args2blocks.end()) args2blocks[arg] = {};
+        args2blocks[arg].push_back(pred);
+      }
+      for(auto arg: args2blocks){
+        std::queue<int> q;
+        int dest_blk = *(var2block[{arg.first, b_type}].begin());
+        for(int blk: arg.second) q.push(blk);
+        std::set<int> seen;
+        while(!q.empty()){
+          int nd = q.front();
+          q.pop();
+          if(seen.find(nd) != seen.end()) continue;
+          seen.insert(nd);
+          phi_vars[nd].push_back({{dest, b_type}, arg.first});
+          if(nd == dest_blk) continue;
+          for(int pred: cfg.blocks[nd].preds) q.push(pred);
+        }
       }
     }
   }
   return phi_vars;
 }
 
-json remove_phi_nodes(CFG &cfg){
+json remove_phi_nodes(CFG &cfg, json func_args){
   std::vector<std::vector<std::pair<std::pair<std::string, json>, std::string>>> 
-    phi_vars = get_phi_vars(cfg);
+    phi_vars = get_phi_vars(cfg, func_args);
   json new_instrs;
   for(auto blk: cfg.blocks){
     json label;
@@ -257,7 +277,7 @@ int main(int argc, char* argv[]){
         relabel_vars(new_cfg, new_analyzer, vars, func["args"]);
         json new_func = func;
         if(phiMode) new_func["instrs"] = new_cfg.toInstrs();
-        else new_func["instrs"] = remove_phi_nodes(new_cfg);
+        else new_func["instrs"] = remove_phi_nodes(new_cfg, func["args"]);
         new_prog["functions"].push_back(new_func);
         // std::cout << new_cfg.toInstrs() << std::endl;
     }
