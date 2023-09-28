@@ -294,10 +294,10 @@ private:
             if(c == par) continue;
             compute_frontier_dfs(c, n);
             for(auto nd: frontier[c]){
-                if(dominators[n].value().find(nd) == dominators[n].value().end()){
+                if(dominators[nd].value().find(n) == dominators[nd].value().end()){
                     bool good = false;
                     for(auto i: cfg->blocks[nd].preds){
-                        if(dominators[n].value().find(i) != dominators[n].value().end()){
+                        if(dominators[i].value().find(n) != dominators[i].value().end()){
                             good = true;
                             break;
                         }
@@ -307,10 +307,10 @@ private:
             }
         }
         for(auto nd: cfg->blocks[n].succs){
-            if(dominators[n].value().find(nd) == dominators[n].value().end()){
+            if(dominators[nd].value().find(n) == dominators[nd].value().end()){
                 bool good = false;
                 for(auto i: cfg->blocks[nd].preds){
-                    if(dominators[n].value().find(i) != dominators[n].value().end()){
+                    if(dominators[i].value().find(n) != dominators[i].value().end()){
                         good = true;
                         break;
                     }
