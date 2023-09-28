@@ -41,7 +41,7 @@ std::vector<std::set<std::string>> get_phi_defs(CFG &cfg, DominatorAnalysis &ana
         for(int cur_block: to_process){
           for(int blk: analyzer.frontier[cur_block]){
             phi_defs[blk].insert(var);
-            if(blocks.find(blk) != blocks.end()){
+            if(blocks.find(blk) == blocks.end()){
               bad = true;
               blocks.insert(blk);
               to_add.insert(blk);
