@@ -1,0 +1,75 @@
+@main(n: int) {
+.start_of_function_anti_clobber_label:
+  print n;
+  a_tot_0: int = call @totient n;
+  print a_tot_0;
+}
+@totient(n: int): int {
+.start_of_function_anti_clobber_label:
+  a_result_0: int = id n;
+  a_p_0: int = const 2;
+  a_one_0: int = const 1;
+  a_zero_0: int = const 0;
+.for.set.cond:
+  one = phi a_one_0 a_one_0 .start_of_function_anti_clobber_label .else_lbl;
+  p = phi a_p_0 a_p_1 .start_of_function_anti_clobber_label .else_lbl;
+  result = phi a_result_0 a_result_0 .start_of_function_anti_clobber_label .else_lbl;
+  zero = phi a_zero_0 a_zero_0 .start_of_function_anti_clobber_label .else_lbl;
+  a_pp_0: int = mul a_p_0 a_p_0;
+  a_cond_0: bool = le a_pp_0 n;
+  br a_cond_0 .for.set.body .for.set.end;
+.for.set.body:
+  cond = phi a_cond_0 .for.set.cond;
+  pp = phi a_pp_0 .for.set.cond;
+  a_npmod_0: int = call @mod n a_p_0;
+  a_if_cond_0: bool = eq a_npmod_0 a_zero_0;
+  br a_if_cond_0 .if_lbl .else_lbl;
+.if_lbl:
+  if_cond = phi a_if_cond_0 .for.set.body;
+  npmod = phi a_npmod_0 .for.set.body;
+  nop;
+.while.set.cond:
+  a_npmod_1: int = call @mod n a_p_0;
+  a_while_cond_0: bool = eq a_npmod_1 a_zero_0;
+  br a_while_cond_0 .while.body .while.end;
+.while.body:
+  npmod = phi a_npmod_1 .while.set.cond;
+  while_cond = phi a_while_cond_0 .while.set.cond;
+  a_npdiv_0: int = div n a_p_0;
+  a_n_0: int = id a_npdiv_0;
+  jmp .while.set.cond;
+.while.end:
+  npmod = phi a_npmod_1 .while.set.cond;
+  while_cond = phi a_while_cond_0 .while.set.cond;
+  a_resdiv_0: int = div a_result_0 a_p_0;
+  a_result_1: int = sub a_result_0 a_resdiv_0;
+.else_lbl:
+  if_cond = phi a_if_cond_0 a_if_cond_0 .for.set.body .while.end;
+  npmod = phi a_npmod_0 a_npmod_1 .for.set.body .while.end;
+  resdiv = phi resdiv a_resdiv_0 .for.set.body .while.end;
+  result = phi a_result_0 a_result_1 .for.set.body .while.end;
+  while_cond = phi while_cond a_while_cond_0 .for.set.body .while.end;
+  a_p_1: int = add a_p_0 a_one_0;
+  jmp .for.set.cond;
+.for.set.end:
+  cond = phi a_cond_0 .for.set.cond;
+  pp = phi a_pp_0 .for.set.cond;
+  a_final_if_cond_0: bool = gt n a_one_0;
+  br a_final_if_cond_0 .final_if_label .final_else_label;
+.final_if_label:
+  final_if_cond = phi a_final_if_cond_0 .for.set.end;
+  a_resdiv_1: int = div a_result_0 n;
+  a_result_2: int = sub a_result_0 a_resdiv_1;
+.final_else_label:
+  final_if_cond = phi a_final_if_cond_0 a_final_if_cond_0 .for.set.end .final_if_label;
+  resdiv = phi resdiv a_resdiv_1 .for.set.end .final_if_label;
+  result = phi a_result_0 a_result_2 .for.set.end .final_if_label;
+  ret a_result_0;
+}
+@mod(a: int, b: int): int {
+.start_of_function_anti_clobber_label:
+  c_ad_0: int = div a b;
+  c_mad_0: int = mul b c_ad_0;
+  c_ans_0: int = sub a c_mad_0;
+  ret c_ans_0;
+}

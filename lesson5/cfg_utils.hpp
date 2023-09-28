@@ -17,12 +17,13 @@ public:
     json instr;
     std::vector<int> preds;
     std::vector<int> succs;
+    int id;
     CFGNode() = default;
 
-    CFGNode(json instr) : instr(instr) {
+    CFGNode(json instr, int id) : instr(instr), id(id) {
     }
 
-    CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs) {
+    CFGNode(const CFGNode &cfgNode) : instr(cfgNode.instr), preds(cfgNode.preds), succs(cfgNode.succs), id(cfgNode.id) {
     }
 };
 
@@ -32,10 +33,11 @@ public:
     std::vector<int> preds;
     std::vector<int> succs;
     std::string blockName;
+    int id;
 
-    CFGBlock(std::string blockName, std::vector<int> nodes) : blockName(blockName), nodes(nodes) {}
+    CFGBlock(std::string blockName, std::vector<int> nodes, int id) : blockName(blockName), nodes(nodes), id(id) {}
 
-    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName){}
+    CFGBlock(const CFGBlock &cfgBlock) : nodes(cfgBlock.nodes), preds(cfgBlock.preds), succs(cfgBlock.succs), blockName(cfgBlock.blockName), id(cfgBlock.id){}
 
 };
 
@@ -60,11 +62,13 @@ public:
         // TODO: end block on ret instruction, maybe always put a nop at the end of the function and point rets there?
         bool unreachable = false;  // TODO: decide whether to put these blocks back in and leave them disconnected from the rest of the function
 
+        int idx = 0;
         for (auto instr : instrs) {
             if (unreachable && !instr.contains("label")) {
                 // create a label for this unreachable code
                 if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()) {
-                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                    nodes.emplace_back(json({{"op", "nop"}}), idx); // make previous block non-empty
+                    idx++;
                 }
                 blockStarts.push_back(nodes.size());
                 labels.push_back(pc.generate());
@@ -72,20 +76,25 @@ public:
             }
 
             if (instr.contains("label")) {
-                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size())
-                    nodes.emplace_back(json({{"op", "nop"}})); // make previous block non-empty
+                if (blockStarts.size() > 0 && blockStarts.back() == nodes.size()){
+                    nodes.emplace_back(json({{"op", "nop"}}), idx); // make previous block non-empty
+                    idx++;
+                }
                 blockStarts.push_back(nodes.size());
                 labels.push_back(instr["label"]);
                 unreachable = false;
             } else if (instr.contains("op") && (instr["op"] == "jmp" || instr["op"] == "br" || instr["op"] == "ret")) {
-                nodes.emplace_back(instr);
+                nodes.emplace_back(instr, idx);
+                idx++;
                 unreachable = true; // instructions immediately after the end of a basic block are unreachable
             } else {
-                nodes.emplace_back(instr);
+                nodes.emplace_back(instr, idx);
+                idx++;
             }
         }
         if (blockStarts.back() == nodes.size()) {
-            nodes.emplace_back(json({{"op", "nop"}})); // make last block non-empty
+            nodes.emplace_back(json({{"op", "nop"}}), idx); // make last block non-empty
+            idx++;
         }
 
         auto numBlocks = blockStarts.size();
@@ -101,7 +110,7 @@ public:
             for (uint32_t j = blockStarts[i]; j < end; j++) {
                 nodePtrs.push_back(j);
             }
-            blocks.emplace_back(labels[i], nodePtrs);
+            blocks.emplace_back(labels[i], nodePtrs, i);
         }
 
         // populate predecessors and successors in neighboring blocks
@@ -184,7 +193,39 @@ public:
         return ans;
     }
 
-    void populate_dfs() {
+    std::vector<int> block_dfs() {
+        if (!block_dfs_results.has_value()) populate_dfs();
+        return block_dfs_results.value();
+    }
+
+    std::vector<std::vector<int>> node_dfs() {
+        if (!node_dfs_results.has_value()) populate_node_dfs();
+        return node_dfs_results.value();
+    }
+
+private:
+    std::optional<std::vector<int>> block_dfs_results;
+    std::optional<std::vector<std::vector<int>>> node_dfs_results;
+
+    void topsort_dfs(std::vector<int>& topsort, std::vector<bool>& visited, int i) {
+        visited[i] = true;
+        for(int j: blocks[i].succs){
+            if(!visited[j]) topsort_dfs(topsort, visited, j);
+        }
+        topsort.push_back(i);
+    }
+
+    void populate_dfs(){
+        std::vector<int> topsort;
+        std::vector<bool> visited(blocks.size(), false);
+        for(int i = 0; i < blocks.size(); i++){
+            if(!visited[i]) topsort_dfs(topsort, visited, i);
+        }
+        std::reverse(topsort.begin(), topsort.end());
+        block_dfs_results = topsort;
+    }
+
+    void populate_node_dfs() {
         int i = 0;
         std::unordered_map<int, int> index;
         std::unordered_map<int, int> lowlink;
@@ -245,16 +286,8 @@ public:
                 }
             }
         }
-        dfs_results = SCCs;
+        node_dfs_results = SCCs;
     }
-
-    std::vector<std::vector<int>> dfs() {
-        if (!dfs_results.has_value()) populate_dfs();
-        return dfs_results.value();
-    }
-
-private:
-    std::optional<std::vector<std::vector<int>>> dfs_results;
 
 };
 
@@ -264,7 +297,7 @@ public:
 
     virtual std::pair<T, bool> meet(const CFGNode &node, const std::vector<T> &influencers, const T &old) = 0;
 
-    virtual std::pair<T, bool> transfer(const CFGNode &node, const T &influence, const T &old) = 0;
+    virtual std::pair<T, bool> transfer(const CFG* const cfg, const CFGNode &node, const T &influence, const T &old) = 0;
 
     virtual std::string stringify(T t) = 0;
 };
@@ -353,7 +386,7 @@ public:
         }
 
 
-        auto SCCs = cfg->dfs(); 
+        auto SCCs = cfg->node_dfs(); 
         if (forwards) {
             std::reverse(SCCs.begin(), SCCs.end());
         }
@@ -382,7 +415,7 @@ public:
                 }
 
                 auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[v] : nodeOut[v]));
-                auto transferRes = factory.transfer(node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
+                auto transferRes = factory.transfer(cfg, node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
 
                 if (forwards) {
                     nodeIn[v] = meetRes.first;
@@ -432,7 +465,7 @@ public:
             }
 
             auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[v] : nodeOut[v]));
-            auto transferRes = factory.transfer(node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
+            auto transferRes = factory.transfer(cfg, node, meetRes.first, (forwards ? nodeOut[v] : nodeIn[v]));
 
             if (forwards) {
                 nodeIn[v] = meetRes.first;
@@ -477,7 +510,7 @@ public:
                 }
 
                 auto meetRes = factory.meet(node, preds, (forwards ? nodeIn[i] : nodeOut[i]));
-                auto transferRes = factory.transfer(node, meetRes.first, (forwards ? nodeOut[i] : nodeIn[i]));
+                auto transferRes = factory.transfer(cfg, node, meetRes.first, (forwards ? nodeOut[i] : nodeIn[i]));
 
                 if (forwards) {
                     nodeIn[i] = meetRes.first;
@@ -494,3 +527,4 @@ public:
         }
     }
 };
+

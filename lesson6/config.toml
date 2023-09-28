@@ -1,0 +1,23 @@
+extract = 'total_dyn_inst: (\d+)'
+benchmarks = 'benchmarks/*/*.bril'
+timeout = 15
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "brili -p {args}",
+]
+
+[runs.into_ssa]
+pipeline = [
+    "bril2json",
+    "./l6_ssa -p",
+    "brili -p {args}",
+]
+
+[runs.out_of_ssa]
+pipeline = [
+    "bril2json",
+    "./l6_ssa",
+    "brili -p {args}",
+]
