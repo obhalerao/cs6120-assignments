@@ -58,7 +58,7 @@ std::vector<std::set<std::pair<std::string,json>>> get_phi_defs(CFG &cfg, Domina
   return phi_defs;
 }
 
-json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args, PrefixCounter* undef_ref){
+json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args){
   std::map<std::pair<std::string,json>, std::set<int>> defs_map = get_defs(cfg, func_args);
   std::vector<std::set<std::pair<std::string,json>>> phi_defs = get_phi_defs(cfg, analyzer, defs_map);
   json instrs;
