@@ -8,7 +8,14 @@ pipeline = [
     "brili -p {args}",
 ]
 
-[runs.to_ssa]
+[runs.into_ssa]
+pipeline = [
+    "bril2json",
+    "./l6_ssa -p",
+    "brili -p {args}",
+]
+
+[runs.out_of_ssa]
 pipeline = [
     "bril2json",
     "./l6_ssa",
