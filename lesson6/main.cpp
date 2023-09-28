@@ -8,19 +8,22 @@
 #include "../src/lib/cfg.hpp"
 #include "../src/lib/cfg_utils.hpp"
 
-std::unordered_map<std::string, std::set<int>> get_defs(CFG &cfg, json func_args){
-  std::unordered_map<std::string, std::set<int>> defs_map;
+std::map<std::pair<std::string, json>, std::set<int>> get_defs(CFG &cfg, json func_args){
+  std::map<std::pair<std::string, json>, std::set<int>> defs_map;
   for(auto arg: func_args){
-    defs_map[arg["name"]] = {0};
+    defs_map[{arg["name"], arg["type"]}] = {0};
   }
   int idx = 0;
   for(auto block: cfg.blocks){
     for(auto node: block.nodes){
       if(cfg.nodes[node].instr.contains("dest")){
-        if(defs_map.find(cfg.nodes[node].instr["dest"]) == defs_map.end()){
-          defs_map[cfg.nodes[node].instr["dest"]] = {};
+        if(defs_map.find({cfg.nodes[node].instr["dest"],
+          cfg.nodes[node].instr["type"]}) == defs_map.end()){
+          defs_map[{cfg.nodes[node].instr["dest"],
+          cfg.nodes[node].instr["type"]}] = {};
         }
-        defs_map[cfg.nodes[node].instr["dest"]].insert(idx);
+        defs_map[{cfg.nodes[node].instr["dest"],
+          cfg.nodes[node].instr["type"]}].insert(idx);
       }
     }
     idx++;
@@ -28,11 +31,11 @@ std::unordered_map<std::string, std::set<int>> get_defs(CFG &cfg, json func_args
   return defs_map;
 }
 
-std::vector<std::set<std::string>> get_phi_defs(CFG &cfg, DominatorAnalysis &analyzer,
-  std::unordered_map<std::string, std::set<int>> &defs_map){
-    std::vector<std::set<std::string>> phi_defs;
+std::vector<std::set<std::pair<std::string,json>>> get_phi_defs(CFG &cfg, DominatorAnalysis &analyzer,
+  std::map<std::pair<std::string, json>, std::set<int>> &defs_map){
+    std::vector<std::set<std::pair<std::string, json>>> phi_defs;
     for(int i = 0; i < cfg.blocks.size(); i++) phi_defs.push_back({});
-    for(auto &[var, blocks]: defs_map){
+    for(auto &[entry, blocks]: defs_map){
       bool bad = true;
       std::set<int> to_process(blocks);
       while(bad){
@@ -40,7 +43,7 @@ std::vector<std::set<std::string>> get_phi_defs(CFG &cfg, DominatorAnalysis &ana
         std::set<int> to_add;
         for(int cur_block: to_process){
           for(int blk: analyzer.frontier[cur_block]){
-            phi_defs[blk].insert(var);
+            phi_defs[blk].insert(entry);
             if(blocks.find(blk) == blocks.end()){
               bad = true;
               blocks.insert(blk);
@@ -55,8 +58,8 @@ std::vector<std::set<std::string>> get_phi_defs(CFG &cfg, DominatorAnalysis &ana
 }
 
 json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args){
-  std::unordered_map<std::string, std::set<int>> defs_map = get_defs(cfg, func_args);
-  std::vector<std::set<std::string>> phi_defs = get_phi_defs(cfg, analyzer, defs_map);
+  std::map<std::pair<std::string,json>, std::set<int>> defs_map = get_defs(cfg, func_args);
+  std::vector<std::set<std::pair<std::string,json>>> phi_defs = get_phi_defs(cfg, analyzer, defs_map);
   json instrs;
   for(auto blk: cfg.blocks){
     json label;
@@ -64,7 +67,8 @@ json add_phi_nodes(CFG &cfg, DominatorAnalysis &analyzer, json func_args){
     if(blk.id != 0) instrs.push_back(label);
     for(auto var: phi_defs[blk.id]){
       json phi_instr = json{{"op", "phi"}};
-      phi_instr["dest"] = var;
+      phi_instr["dest"] = var.first;
+      phi_instr["type"] = var.second;
       instrs.push_back(phi_instr);
     }
     for(auto node: blk.nodes){
@@ -106,6 +110,8 @@ void relabel_block(CFG &cfg, DominatorAnalysis &analyzer, int block_id, int pare
       if(!(cur_node.instr.contains("op") && cur_node.instr["op"] == "phi")){
         break;
       }
+      if(variable_names[orig_node_label[cur_node.id]].empty()) continue;
+      std::string name = variable_names[orig_node_label[cur_node.id]].top();
       cur_node.instr["args"].push_back(variable_names[orig_node_label[cur_node.id]].top());
       cur_node.instr["labels"].push_back(cfg.blocks[block_id].blockName);
     }
@@ -139,16 +145,19 @@ std::set<std::string> get_vars(json instrs, json func_args){
   return ans;
 }
 
-void relabel_vars(CFG &cfg, DominatorAnalysis &analyzer, std::set<std::string> &vars){
+void relabel_vars(CFG &cfg, DominatorAnalysis &analyzer, std::set<std::string> &vars,
+json func_args){
   std::map<std::string, std::stack<std::string>> variable_names;
   std::map<std::string, PrefixCounter*> counters;
   std::string prefix = short_unique_prefix(vars);
   for(auto var: vars){
     std::stack<std::string> curstk;
-    curstk.push(var);
     variable_names[var] = curstk;
     PrefixCounter* pc = new PrefixCounter(prefix + "_" + var);
     counters[var] = pc;
+  }
+  for(auto arg: func_args){
+    variable_names[arg["name"]].push(arg["name"]);
   }
   std::map<int, std::string> orig_labels;
   for(auto node: cfg.nodes){
@@ -162,19 +171,74 @@ void relabel_vars(CFG &cfg, DominatorAnalysis &analyzer, std::set<std::string> &
   }
 }
 
+std::map<std::string, int> gen_block2index(CFG &cfg){
+  std::map<std::string, int> block2index;
+  for(auto block: cfg.blocks){
+    block2index[block.blockName] = block.id;
+  }
+  return block2index;
+}
+
+std::vector<std::vector<std::pair<std::pair<std::string, json>, std::string>>> 
+get_phi_vars(CFG &cfg){
+  std::map<std::string, int> block2index = gen_block2index(cfg);
+  std::vector<std::vector<std::pair<std::pair<std::string, json>, std::string>>> phi_vars;
+  for(auto block: cfg.blocks) phi_vars.push_back({}); 
+  for(auto block: cfg.blocks){
+    for(auto node_idx: block.nodes){
+      auto instr = cfg.nodes[node_idx].instr;
+      if(!(instr.contains("op") && instr["op"] == "phi")) break;
+      std::string dest = instr["dest"];
+      json b_type = instr["type"];
+      for(int i = 0; i < instr["args"].size(); i++){
+        int pred = block2index[instr["labels"][i]];
+        phi_vars[pred].push_back({{dest, b_type}, instr["args"][i]});
+      }
+    }
+  }
+  return phi_vars;
+}
+
+json remove_phi_nodes(CFG &cfg){
+  std::vector<std::vector<std::pair<std::pair<std::string, json>, std::string>>> 
+    phi_vars = get_phi_vars(cfg);
+  json new_instrs;
+  for(auto blk: cfg.blocks){
+    json label;
+    label["label"] = blk.blockName;
+    new_instrs.push_back(label);
+    for(auto node: blk.nodes){
+      auto instr = cfg.nodes[node].instr;
+      if(instr.contains("op") && instr["op"] == "phi") continue;
+      if(instr.contains("op") && instr["op"] == "br" || instr["op"] == "jmp") break;
+      new_instrs.push_back(instr);
+    }
+    for(auto entry: phi_vars[blk.id]){
+      json cur_instr;
+      cur_instr["op"] = "id";
+      cur_instr["dest"] = entry.first.first;
+      cur_instr["type"] = entry.first.second;
+      cur_instr["args"].push_back(entry.second);
+      new_instrs.push_back(cur_instr);
+    }
+    auto last_instr = cfg.nodes[blk.nodes[blk.nodes.size()-1]].instr;
+    if(last_instr.contains("op") && last_instr["op"] == "br" || last_instr["op"] == "jmp"){
+      new_instrs.push_back(last_instr);
+    }
+  }
+  return new_instrs;
+}
+
 int main(int argc, char* argv[]){
   json prog;
   std::cin >> prog;
 
-  bool profileMode = false;
-  bool naiveMode = false;
+  bool phiMode = false;
 
   for (int i = 1; i < argc; ++i) {
       std::string arg = argv[i];
       if (arg == "-p") {
-          profileMode = true;
-      } else if (arg == "-n") {
-          naiveMode = true;
+          phiMode = true;
       }
   }
 
@@ -190,9 +254,10 @@ int main(int argc, char* argv[]){
         auto new_analyzer = DominatorAnalysis(&new_cfg);
         new_analyzer.smartAnalyze();
         std::set<std::string> vars = get_vars(new_instrs, func["args"]);
-        relabel_vars(new_cfg, new_analyzer, vars);
+        relabel_vars(new_cfg, new_analyzer, vars, func["args"]);
         json new_func = func;
-        new_func["instrs"] = new_cfg.toInstrs();
+        if(phiMode) new_func["instrs"] = new_cfg.toInstrs();
+        else new_func["instrs"] = remove_phi_nodes(new_cfg);
         new_prog["functions"].push_back(new_func);
         // std::cout << new_cfg.toInstrs() << std::endl;
     }
