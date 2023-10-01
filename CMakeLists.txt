@@ -8,7 +8,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
 
-# add include for all projects
+find_package(LLVM REQUIRED CONFIG)
+set(LLVM_DIR "${LLVM_HOME}/build/lib/cmake/llvm")
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION} in ${LLVM_DIR}")
+
+# Include the part of LLVM's CMake libraries that defines
+# `add_llvm_pass_plugin`.
+include(AddLLVM)
+
+# add LLVM includes
+include_directories("${LLVM_INCLUDE_DIRS}")
+
+# add local includes for all projects
 include_directories("${PROJECT_SOURCE_DIR}/include")
 
 # add the libraries
@@ -24,6 +35,11 @@ add_executable(l3_lvn "${PROJECT_SOURCE_DIR}/src/main/lesson3_lvn.cpp")
 add_executable(l4_dataflow "${PROJECT_SOURCE_DIR}/src/main/lesson4.cpp")
 add_executable(l5_global "${PROJECT_SOURCE_DIR}/lesson5/main.cpp")
 add_executable(l6_ssa "${PROJECT_SOURCE_DIR}/lesson6/main.cpp")
+
+add_llvm_pass_plugin(L7Pass
+    # List your source files here.
+    lesson7/pass.cpp
+)
 
 target_link_libraries(cfg cfg_utils)
 target_link_libraries(l3_lvn l3_helpers)
