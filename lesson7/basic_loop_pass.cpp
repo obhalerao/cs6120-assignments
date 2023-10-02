@@ -7,9 +7,15 @@ using namespace llvm;
 
 namespace {
 
-struct DumbFunctionPass : public PassInfoMixin<DumbFunctionPass>{
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
-    errs() << "HIIIIIIII!!!!!!!!!!!!\n";
+struct LessDumbLoopPass : public PassInfoMixin<LessDumbLoopPass>{
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    for (auto &F : M){
+        FunctionAnalysisManager &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+        LoopInfo &LI = FAM.getResult<LoopAnalysis>(F);
+        for(auto &L: LI){
+            errs() << L->getName() << "\n";
+        }
+    }
     return PreservedAnalyses::all();
   };
 };
@@ -43,11 +49,9 @@ llvmGetPassPluginInfo() {
         .RegisterPassBuilderCallbacks = [](PassBuilder &PB) {
             PB.registerPipelineStartEPCallback(
                 [](ModulePassManager &MPM, OptimizationLevel Level) {
-                    FunctionPassManager FPM;
-                    FPM.addPass(DumbFunctionPass());
-                    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
                     MPM.addPass(SkeletonPass());
                     MPM.addPass(SkeletonPass2());
+                    MPM.addPass(LessDumbLoopPass());
                 });
         }
     };
