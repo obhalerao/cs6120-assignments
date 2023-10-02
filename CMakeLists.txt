@@ -38,7 +38,7 @@ add_executable(l6_ssa "${PROJECT_SOURCE_DIR}/lesson6/main.cpp")
 
 add_llvm_pass_plugin(L7Pass
     # List your source files here.
-    lesson7/function_pass.cpp
+    lesson7/basic_loop_pass.cpp
 )
 
 target_link_libraries(cfg cfg_utils)
