@@ -8,8 +8,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
 
-find_package(LLVM REQUIRED CONFIG)
 set(LLVM_DIR "${LLVM_HOME}/build/lib/cmake/llvm")
+find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION} in ${LLVM_DIR}")
 
 # Include the part of LLVM's CMake libraries that defines
@@ -38,7 +38,7 @@ add_executable(l6_ssa "${PROJECT_SOURCE_DIR}/lesson6/main.cpp")
 
 add_llvm_pass_plugin(L7Pass
     # List your source files here.
-    lesson7/pass.cpp
+    lesson7/function_pass.cpp
 )
 
 target_link_libraries(cfg cfg_utils)

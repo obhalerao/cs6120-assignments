@@ -1,6 +1,8 @@
 #include "../dataflow_analysis.hpp"
 #include "../cfg_utils.hpp"
 
+#include <optional>
+
 typedef long long ll;
 
 enum class type_t {
