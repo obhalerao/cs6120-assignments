@@ -2,6 +2,7 @@
 #define CFG_UTILS_
 
 #include <string>
+#include <sstream>
 #include "json.hpp"
 
 using json = nlohmann::json;

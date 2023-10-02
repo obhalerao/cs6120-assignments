@@ -7,12 +7,14 @@ project(cs6120_assignments)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
-
-set(LLVM_DIR "${LLVM_HOME}/build/lib/cmake/llvm")
+if ((NOT (DEFINED LLVM_DIR)) AND (DEFINED LLVM_HOME))
+    set(LLVM_DIR "${LLVM_HOME}/build/lib/cmake/llvm")
+endif()
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION} in ${LLVM_DIR}")
 
-# Include the part of LLVM's CMake libraries that defines
+
+# Include the part of LLVM's ies that defines
 # `add_llvm_pass_plugin`.
 include(AddLLVM)
 
@@ -40,10 +42,12 @@ add_llvm_pass_plugin(L7Pass
     # List your source files here.
     lesson7/basic_loop_pass.cpp
 )
+add_library(L7Lib SHARED lesson7/rtlib.cpp)
+
 
 target_link_libraries(cfg cfg_utils)
 target_link_libraries(l3_lvn l3_helpers)
 target_link_libraries(l3_tdce l3_helpers)
 target_link_libraries(dataflow_analysis cfg cfg_utils)
-target_link_libraries(l4_dataflow -fsanitize=address -static-libasan dataflow_analysis cfg cfg_utils)
+target_link_libraries(l4_dataflow -fsanitize=address dataflow_analysis cfg cfg_utils)
 target_link_libraries(l6_ssa cfg cfg_utils)
