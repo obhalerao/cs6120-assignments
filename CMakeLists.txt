@@ -42,8 +42,6 @@ add_llvm_pass_plugin(L7Pass
     # List your source files here.
     lesson7/basic_loop_pass.cpp
 )
-add_library(L7Lib SHARED lesson7/rtlib.cpp)
-
 
 target_link_libraries(cfg cfg_utils)
 target_link_libraries(l3_lvn l3_helpers)
