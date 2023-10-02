@@ -17,34 +17,51 @@ namespace {
             Type *retType = Type::getVoidTy(Ctx);
             FunctionType *logFuncType = FunctionType::get(retType, paramTypes, false);
             FunctionCallee logFunc =
-                M.getOrInsertFunction("logop", logFuncType);
+                    M.getOrInsertFunction("logop", logFuncType);
 
 
             for (auto &F: M.functions()) {
 
                 FunctionAnalysisManager &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
                 LoopInfo &LI = FAM.getResult<LoopAnalysis>(F);
+                for (auto &F: M.functions()) {
 
-                int32_t loop_counter = 0;
-                for (auto &L: LI) {
-                    errs() << L->getName() << "\n";
+                    // Get the function to call from our runtime library.
+                    LLVMContext &Ctx = F.getContext();
+                    std::vector<Type *> paramTypes = {Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx)};
+                    Type *retType = Type::getVoidTy(Ctx);
+                    FunctionType *logFuncType = FunctionType::get(retType, paramTypes, false);
+                    FunctionCallee logFunc =
+                            F.getParent()->getOrInsertFunction("logop", logFuncType);
 
-                    // auto header = L->getHeader();
-                    // IRBuilder<> builder(&(header->front()));
-                    // builder.SetInsertPoint(&(header->front()));
+                    bool done = false;
+                    for (auto &B: F) {
+                        if (done) continue;
+                        FunctionAnalysisManager &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+                        LoopInfo &LI = FAM.getResult<LoopAnalysis>(F);
+                        for (auto &L: LI) {
+                            errs() << L->getName() << "\n";
+                            auto header = L->getHeader();
+                            IRBuilder<> builder(&(header->front()));
+                            builder.SetInsertPoint(&(header->front()));
+                            auto arg1 = llvm::ConstantInt::get(Ctx, llvm::APInt(32, 23, true));
+                            auto arg2 = llvm::ConstantInt::get(Ctx, llvm::APInt(32, 34, true));
+                            Value *args[] = {arg1, arg2};
+                            builder.CreateCall(logFunc, args);
 
-                    // auto arg1 = llvm::ConstantInt::get(Ctx, llvm::APInt(32, fun_counter, true));
-                    // auto arg2 = llvm::ConstantInt::get(Ctx, llvm::APInt(32, loop_counter, true));
-                    // Value* args[] = {arg1, arg2};
-                    // builder.CreateCall(logFunc, args);
-                    loop_counter++;
+
+                        }
+                        if (!paramTypes.empty()) {
+                            done = true;
+                        }
+                    }
+
                 }
-                fun_counter++;
             }
-            return PreservedAnalyses::none();
+            return PreservedAnalyses::all();
         };
-    };
 
+    };
 }
 
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
