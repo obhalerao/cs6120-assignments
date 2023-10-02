@@ -7,9 +7,10 @@ project(cs6120_assignments)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
-if ((NOT (DEFINED LLVM_DIR)) AND (DEFINED LLVM_HOME))
-    set(LLVM_DIR "${LLVM_HOME}/build/lib/cmake/llvm")
+if ((NOT (DEFINED ENV{LLVM_DIR})) AND (DEFINED ENV{LLVM_HOME}))
+    set(LLVM_DIR "$ENV{LLVM_HOME}/build/lib/cmake/llvm")
 endif()
+
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION} in ${LLVM_DIR}")
 
