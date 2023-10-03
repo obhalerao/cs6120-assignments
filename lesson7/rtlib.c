@@ -3,13 +3,13 @@
 
 int** log_data;
 
-int num_funs = 5;
-int num_loops = 5;
+int num_funs = 10;
+int num_loops = 10;
 
 void start_logging() {
-    log_data = malloc(num_funs * sizeof(int*));
+    log_data = (int **) malloc(num_funs * sizeof(int*));
     for (int i = 0; i < num_funs; i++) {
-        log_data[i] = malloc(num_loops * sizeof(int));
+        log_data[i] = (int *) malloc(num_loops * sizeof(int));
         for (int j = 0; j < num_loops; j++) {
             log_data[i][j] = -1;
         }
