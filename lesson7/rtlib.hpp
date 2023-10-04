@@ -7,12 +7,12 @@
 
 #include <unordered_map>
 
-std::unordered_map<int, std::unordered_map<int, int>> log_data;
+extern std::unordered_map<int, std::unordered_map<int, int>> log_data;
 
-void start_logging();
+extern "C" void start_logging();
 
-void logop(int fun_counter, int loop_counter);
+extern "C" void logop(int fun_counter, int loop_counter);
 
-void end_logging();
+extern "C" void end_logging();
 
 #endif //CS6120_ASSIGNMENTS_RTLIB_HPP
