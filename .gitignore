@@ -3,10 +3,11 @@ build/
 .idea/
 .ipynb_checkpoints/
 *.ipynb
-cmake-build-debug/
 CMakeFiles/
 cmake_install.*
 CMakeCache.*
 Makefile
-
 *.csv
+*.ll
+*.out
+*.o
