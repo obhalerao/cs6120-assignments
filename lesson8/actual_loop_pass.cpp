@@ -13,6 +13,8 @@ namespace {
             errs() << "test\n";
             return PreservedAnalyses::all();
         }
+    private:
+        bool loopInvariant;
     };
 
 }

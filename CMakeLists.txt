@@ -45,7 +45,7 @@ add_llvm_pass_plugin(L7Pass
 )
 
 add_llvm_pass_plugin(L8Pass
-    lesson8/actual_loop_pass.cpp
+    lesson8/licm_pass.cpp
 )
 
 target_link_libraries(cfg cfg_utils)
