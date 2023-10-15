@@ -35,19 +35,19 @@ namespace {
 
 
                 int idx = 0;
-                for (auto &L : LI) {
-                    idx++;
-                    std::set<Instruction*> loop_invars;
-                    auto header = L->getHeader();
-                    for(auto &BB : L->getBlocks()){
-                      for(auto &I: *BB){
-                        errs() << I << "\n";
-                        if(L->hasLoopInvariantOperands(&I)){
-                          bool changed = false;
+                bool changed = true;
+                while(changed){
+                  changed = false;
+                  for (auto &L : LI) {
+                      idx++;
+                      std::set<Instruction*> loop_invars;
+                      auto header = L->getHeader();
+                      for(auto &BB : L->getBlocks()){
+                        for(auto &I: *BB){
                           L->makeLoopInvariant(&I, changed);
                         }
                       }
-                    }
+                  }
                 }
 
             }
