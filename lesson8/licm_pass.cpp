@@ -61,14 +61,16 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
     return {
             .APIVersion = LLVM_PLUGIN_API_VERSION,
-            .PluginName = "Skeleton pass",
+            .PluginName = "custom_licm",
             .PluginVersion = "v0.1",
             .RegisterPassBuilderCallbacks = [](PassBuilder &PB) {
-                PB.registerPipelineStartEPCallback(
-                        [](ModulePassManager &MPM, OptimizationLevel Level) {
-                            MPM.addPass(createModuleToFunctionPassAdaptor(LoopSimplifyPass()));
-                            MPM.addPass(SkeletonPass());
-                            
+                PB.registerPipelineParsingCallback(
+                        [](StringRef name, ModulePassManager &MPM, ...) {
+                            if(name == "custom_licm"){
+                                MPM.addPass(SkeletonPass());
+                                return true;
+                            }
+                            return false;
                         });
             }
     };
