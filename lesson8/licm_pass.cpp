@@ -15,16 +15,11 @@ namespace {
     struct SkeletonPass : public PassInfoMixin<SkeletonPass> {
         PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
             int32_t fun_counter = 0;
-            errs() << "hi\n";
+            // errs() << "hi\n";
             for (auto &F : M.functions()) {
 
                 // Get the function to call from our runtime library.
                 LLVMContext &Ctx = F.getContext();
-                std::vector<Type*> paramTypes = {Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx)};
-                Type *retType = Type::getVoidTy(Ctx);
-                FunctionType *logFuncType = FunctionType::get(retType, paramTypes, false);
-                FunctionCallee logFunc =
-                        F.getParent()->getOrInsertFunction("logop", logFuncType);
 
                 if(F.isDeclaration()) continue;
                 FunctionAnalysisManager &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
@@ -44,7 +39,16 @@ namespace {
                       auto header = L->getHeader();
                       for(auto &BB : L->getBlocks()){
                         for(auto &I: *BB){
-                          L->makeLoopInvariant(&I, changed);
+                            if (I.isTerminator()) continue;
+                          bool isInvariant = L->makeLoopInvariant(&I, changed);
+                          if (isInvariant) {
+                            // errs() << "remaining instrs are: ";
+                            for (auto &I: *BB) {
+                                // errs() << I << ";";
+                            }
+                            // errs() << "\n";
+                            break;
+                          }
                         }
                       }
                   }
