@@ -21,8 +21,9 @@ namespace {
                         F.getParent()->getOrInsertFunction("logop", logFuncType);
 
                 bool done = false;
-                for (auto &B : F) {
-                    if (done) continue;
+                if(F.isDeclaration()) continue;
+                // for (auto &B : F) {
+                //     if (done) continue;
 
 
                     FunctionAnalysisManager &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
@@ -47,7 +48,7 @@ namespace {
                     if (!paramTypes.empty()) {
                         done = true;
                     }
-                }
+                // }
                 fun_counter++;
             }
             return PreservedAnalyses::all();
