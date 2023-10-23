@@ -45,8 +45,12 @@ export class Heap<X> {
 
     private readonly storage: Map<number, X[]>
     private readonly refCount: Map<number, number>
+    private readonly toFree: number[]
+    
     constructor() {
         this.storage = new Map()
+        this.refCount = new Map()
+        this.toFree = new Array()
     }
 
     isEmpty(): boolean {
@@ -108,6 +112,10 @@ export class Heap<X> {
       } else {
         throw error(`Tried to return reference count of uninitialized location base: ${key.base}.`)
       }
+    }
+
+    scheduleFree(key: Key){
+      this.toFree.push(key.base)
     }
 
     write(key: Key, val: X) {
@@ -480,8 +488,18 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   case "id": {
     let val = getArgument(instr, state.env, 0);
+    let newMemEntry = getPtr(instr, state.env, 0)
+    let typ = instr.type
+    if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
+      let oldMemEntry = state.env.get(instr.dest) as Pointer
+      state.heap.incrementCount(newMemEntry.loc)
+      state.heap.decrementCount(oldMemEntry.loc)
+      if(state.heap.getCount(oldMemEntry.loc) == 0){
+        state.heap.scheduleFree(oldMemEntry.loc)
+      }
+    }
     state.env.set(instr.dest, val);
-    // check if dest is ptr, if so update refcount
+    
     return NEXT;
   }
 
@@ -701,6 +719,15 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   case "ptradd": {
     let ptr = getPtr(instr, state.env, 0)
     let val = getInt(instr, state.env, 1)
+    let typ = instr.type
+    if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
+      let oldMemEntry = state.env.get(instr.dest) as Pointer
+      state.heap.incrementCount(ptr.loc)
+      state.heap.decrementCount(oldMemEntry.loc)
+      if(state.heap.getCount(oldMemEntry.loc) == 0){
+        state.heap.scheduleFree(oldMemEntry.loc)
+      }
+    }
     state.env.set(instr.dest, { loc: ptr.loc.add(Number(val)), type: ptr.type })
     // update refcount
     return NEXT;
