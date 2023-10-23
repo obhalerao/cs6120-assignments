@@ -44,6 +44,7 @@ export class Key {
 export class Heap<X> {
 
     private readonly storage: Map<number, X[]>
+    private readonly refCount: Map<number, number>
     constructor() {
         this.storage = new Map()
     }
@@ -69,6 +70,7 @@ export class Heap<X> {
         }
         let base = this.getNewBase();
         this.storage.set(base, new Array(amt))
+        this.refCount.set(base, 1);
         return new Key(base, 0);
     }
 
@@ -79,6 +81,33 @@ export class Heap<X> {
         } else {
             throw error(`Tried to free illegal memory location base: ${key.base}, offset: ${key.offset}. Offset must be 0.`);
         }
+    }
+
+    incrementCount(key: Key){
+      let count = this.refCount.get(key.base)
+      if (count) {
+        this.refCount.set(key.base, count+1);
+      } else {
+        throw error(`Tried to increment reference count of uninitialized location base: ${key.base}.`)
+      }
+    }
+
+    decrementCount(key: Key){
+      let count = this.refCount.get(key.base)
+      if (count) {
+        this.refCount.set(key.base, count-1);
+      } else {
+        throw error(`Tried to decrement reference count of uninitialized location base: ${key.base}.`)
+      }
+    }
+
+    getCount(key: Key){
+      let count = this.refCount.get(key.base)
+      if (count) {
+        return count
+      } else {
+        throw error(`Tried to return reference count of uninitialized location base: ${key.base}.`)
+      }
     }
 
     write(key: Key, val: X) {
@@ -452,6 +481,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   case "id": {
     let val = getArgument(instr, state.env, 0);
     state.env.set(instr.dest, val);
+    // check if dest is ptr, if so update refcount
     return NEXT;
   }
 
@@ -672,6 +702,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     let ptr = getPtr(instr, state.env, 0)
     let val = getInt(instr, state.env, 1)
     state.env.set(instr.dest, { loc: ptr.loc.add(Number(val)), type: ptr.type })
+    // update refcount
     return NEXT;
   }
 
