@@ -688,6 +688,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
       throw error(`cannot allocate non-pointer type ${instr.type}`);
     }
     let ptr = alloc(typ, Number(amt), state.heap);
+    incrementCount(ptr.loc, state);
     state.env.set(instr.dest, ptr);
     return NEXT;
   }
@@ -721,10 +722,10 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     let typ = instr.type
     if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
       let oldMemEntry = state.env.get(instr.dest) as Pointer
-      state.heap.incrementCount(ptr.loc)
-      state.heap.decrementCount(oldMemEntry.loc)
-      if(state.heap.getCount(oldMemEntry.loc) == 0){
-        state.heap.scheduleFree(oldMemEntry.loc)
+      incrementCount(ptr.loc, state)
+      decrementCount(oldMemEntry.loc, state)
+      if(getCount(oldMemEntry.loc, state) == 0){
+        scheduleFree(oldMemEntry.loc, state)
       }
     }
     state.env.set(instr.dest, { loc: ptr.loc.add(Number(val)), type: ptr.type })
