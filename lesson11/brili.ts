@@ -43,14 +43,10 @@ export class Key {
  */
 export class Heap<X> {
 
-    private readonly storage: Map<number, X[]>
-    private readonly refCount: Map<number, number>
-    private readonly toFree: number[]
+    private readonly storage: Map<number, X[]>;
     
     constructor() {
-        this.storage = new Map()
-        this.refCount = new Map()
-        this.toFree = new Array()
+        this.storage = new Map();
     }
 
     isEmpty(): boolean {
@@ -73,8 +69,7 @@ export class Heap<X> {
             throw error(`cannot allocate ${amt} entries`);
         }
         let base = this.getNewBase();
-        this.storage.set(base, new Array(amt))
-        this.refCount.set(base, 1);
+        this.storage.set(base, new Array(amt));
         return new Key(base, 0);
     }
 
@@ -85,37 +80,6 @@ export class Heap<X> {
         } else {
             throw error(`Tried to free illegal memory location base: ${key.base}, offset: ${key.offset}. Offset must be 0.`);
         }
-    }
-
-    incrementCount(key: Key){
-      let count = this.refCount.get(key.base)
-      if (count) {
-        this.refCount.set(key.base, count+1);
-      } else {
-        throw error(`Tried to increment reference count of uninitialized location base: ${key.base}.`)
-      }
-    }
-
-    decrementCount(key: Key){
-      let count = this.refCount.get(key.base)
-      if (count) {
-        this.refCount.set(key.base, count-1);
-      } else {
-        throw error(`Tried to decrement reference count of uninitialized location base: ${key.base}.`)
-      }
-    }
-
-    getCount(key: Key){
-      let count = this.refCount.get(key.base)
-      if (count) {
-        return count
-      } else {
-        throw error(`Tried to return reference count of uninitialized location base: ${key.base}.`)
-      }
-    }
-
-    scheduleFree(key: Key){
-      this.toFree.push(key.base)
     }
 
     write(key: Key, val: X) {
@@ -349,6 +313,8 @@ type State = {
   env: Env,
   readonly heap: Heap<Value>,
   readonly funcs: readonly bril.Function[],
+  refCount: Map<number, number>
+  toFree: number[]
 
   // For profiling: a total count of the number of instructions executed.
   icount: bigint,
@@ -359,6 +325,37 @@ type State = {
 
   // For speculation: the state at the point where speculation began.
   specparent: State | null,
+}
+
+function incrementCount(key: Key, state: State){
+  let count = state.refCount.get(key.base)
+  if (count) {
+    state.refCount.set(key.base, count+1);
+  } else {
+    throw error(`Tried to increment reference count of uninitialized location base: ${key.base}.`)
+  }
+}
+
+function decrementCount(key: Key, state: State){
+  let count = state.refCount.get(key.base)
+  if (count) {
+    state.refCount.set(key.base, count-1);
+  } else {
+    throw error(`Tried to decrement reference count of uninitialized location base: ${key.base}.`)
+  }
+}
+
+function getCount(key: Key, state: State){
+  let count = state.refCount.get(key.base)
+  if (count) {
+    return count
+  } else {
+    throw error(`Tried to return reference count of uninitialized location base: ${key.base}.`)
+  }
+}
+
+function scheduleFree(key: Key, state: State){
+  state.toFree.push(key.base)
 }
 
 /**
@@ -399,6 +396,8 @@ function evalCall(instr: bril.Operation, state: State): Action {
     env: newEnv,
     heap: state.heap,
     funcs: state.funcs,
+    refCount: state.refCount,
+    toFree: state.toFree,
     icount: state.icount,
     lastlabel: null,
     curlabel: null,
@@ -492,10 +491,10 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     let typ = instr.type
     if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
       let oldMemEntry = state.env.get(instr.dest) as Pointer
-      state.heap.incrementCount(newMemEntry.loc)
-      state.heap.decrementCount(oldMemEntry.loc)
-      if(state.heap.getCount(oldMemEntry.loc) == 0){
-        state.heap.scheduleFree(oldMemEntry.loc)
+      incrementCount(newMemEntry.loc, state)
+      decrementCount(oldMemEntry.loc, state)
+      if(getCount(oldMemEntry.loc, state) == 0){
+        scheduleFree(oldMemEntry.loc, state)
       }
     }
     state.env.set(instr.dest, val);
