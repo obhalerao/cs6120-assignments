@@ -355,7 +355,12 @@ function getCount(key: Key, state: State){
 }
 
 function scheduleFree(key: Key, state: State){
-  state.toFree.push(key.base)
+  state.toFree.push(key.base);
+}
+
+function collect(keyBase: number, state: State){
+  let val = state.heap.read(new Key(keyBase, 0));
+  // help how to check if val is a pointer :sob:
 }
 
 /**
