@@ -1,5 +1,5 @@
-import * as bril from './bril-ts/bril.js';
-import {readStdin, unreachable} from './bril-ts/util.js';
+import * as bril from './bril-ts/bril.ts';
+import {readStdin, unreachable} from './bril-ts/util.ts';
 
 /**
  * An interpreter error to print to the console.
@@ -345,7 +345,7 @@ function incrementCount(key: Key, state: State){
   if (count) {
     state.refCount.set(key.base, count+1);
   } else {
-    throw error(`Tried to increment reference count of uninitialized location base: ${key.base}.`)
+    state.refCount.set(key.base, 1);
   }
 }
 
@@ -400,6 +400,8 @@ function freeAtEnd(state: State){
     let elem = state.toFree.shift();
     if(elem){
       collect(elem, state);
+    }else{
+      break;
     }
   }
 }
@@ -533,14 +535,16 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   case "id": {
     let val = getArgument(instr, state.env, 0);
-    let newMemEntry = getPtr(instr, state.env, 0)
     let typ = instr.type
     if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
-      let oldMemEntry = state.env.get(instr.dest) as Pointer
+      let oldMemEntry = state.env.get(instr.dest) as Pointer;
+      let newMemEntry = getPtr(instr, state.env, 0);
       incrementCount(newMemEntry.loc, state)
-      decrementCount(oldMemEntry.loc, state)
-      if(getCount(oldMemEntry.loc, state) == 0){
-        scheduleFree(oldMemEntry.loc, state)
+      if(oldMemEntry){
+        decrementCount(oldMemEntry.loc, state)
+        if(getCount(oldMemEntry.loc, state) == 0){
+          scheduleFree(oldMemEntry.loc, state)
+        }
       }
     }
     state.env.set(instr.dest, val);
@@ -770,9 +774,11 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
       let oldMemEntry = state.env.get(instr.dest) as Pointer
       incrementCount(ptr.loc, state)
-      decrementCount(oldMemEntry.loc, state)
-      if(getCount(oldMemEntry.loc, state) == 0){
-        scheduleFree(oldMemEntry.loc, state)
+      if(oldMemEntry){
+        decrementCount(oldMemEntry.loc, state)
+        if(getCount(oldMemEntry.loc, state) == 0){
+          scheduleFree(oldMemEntry.loc, state)
+        }
       }
     }
     state.env.set(instr.dest, { loc: ptr.loc.add(Number(val)), type: ptr.type })
