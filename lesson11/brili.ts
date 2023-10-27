@@ -1017,7 +1017,9 @@ function parseMainArguments(expected: bril.Argument[], args: string[]) : Env {
 }
 
 function evalProg(prog: bril.Program) {
-  let heap = new Heap<Value>()
+  let heap = new Heap<Value>();
+  let refCount = new Map<number, number>();
+  let toFree = new Array<number>();
   let main = findFunc("main", prog.functions);
   if (main === null) {
     console.warn(`no main function defined, doing nothing`);
@@ -1041,12 +1043,15 @@ function evalProg(prog: bril.Program) {
     funcs: prog.functions,
     heap,
     env: newEnv,
+    refCount: refCount,
+    toFree: toFree,
     icount: BigInt(0),
     lastlabel: null,
     curlabel: null,
     specparent: null,
   }
   evalFunc(main, state);
+  freeAtEnd(state);
 
   if (!heap.isEmpty()) {
     throw error(`Some memory locations have not been freed by end of execution.`);
