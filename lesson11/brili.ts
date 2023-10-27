@@ -73,6 +73,15 @@ export class Heap<X> {
         return new Key(base, 0);
     }
 
+    getSize(base: number): number {
+      let ans = this.storage.get(base)?.length;
+      if(ans){
+        return ans;
+      } else {
+        throw error(`Tried to get size allocation from illegal memory base: ${base}.`);
+      }
+    }
+
     free(key: Key) {
         if (this.storage.has(key.base) && key.offset == 0) {
             this.freeKey(key);
@@ -327,6 +336,10 @@ type State = {
   specparent: State | null,
 }
 
+function isPointer(value: Value): value is Pointer {
+  return (value as Pointer).loc !== undefined;
+}
+
 function incrementCount(key: Key, state: State){
   let count = state.refCount.get(key.base)
   if (count) {
@@ -358,9 +371,37 @@ function scheduleFree(key: Key, state: State){
   state.toFree.push(key.base);
 }
 
-function collect(keyBase: number, state: State){
+function collect(keyBase: number, state: State): number {
   let val = state.heap.read(new Key(keyBase, 0));
-  // help how to check if val is a pointer :sob:
+  let sz = state.heap.getSize(keyBase);
+  if(isPointer(val)){
+    for(let i = 0; i < sz; i++){
+      state.toFree.push((state.heap.read(new Key(keyBase, i)) as Pointer).loc.base);
+    }
+  }
+  state.heap.free(new Key(keyBase, 0));
+  return sz;
+}
+
+function collectGarbage(size: number, state: State){
+  let tot = 0;
+  while(tot < size){
+    let elem = state.toFree.shift();
+    if(elem){
+      tot += collect(elem, state);
+    }else{
+      break;
+    }
+  }
+}
+
+function freeAtEnd(state: State){
+  while(true){
+    let elem = state.toFree.shift();
+    if(elem){
+      collect(elem, state);
+    }
+  }
 }
 
 /**
@@ -692,6 +733,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     if (!(typeof typ === "object" && typ.hasOwnProperty('ptr'))) {
       throw error(`cannot allocate non-pointer type ${instr.type}`);
     }
+    collectGarbage(Number(amt), state);
     let ptr = alloc(typ, Number(amt), state.heap);
     incrementCount(ptr.loc, state);
     state.env.set(instr.dest, ptr);
