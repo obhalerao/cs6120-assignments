@@ -4,6 +4,7 @@
   call @fill_array arr size;
   checksum: int = call @adler32 arr size;
   print checksum;
+  brr : ptr<int> = id arr;
   # free arr;
 }
 

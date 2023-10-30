@@ -53,6 +53,10 @@ export class Heap<X> {
         return this.storage.size == 0;
     }
 
+    size(): Number {
+        return this.storage.size;
+    }
+
     private count = 0;
     private getNewBase():number {
         let val = this.count;
@@ -64,14 +68,7 @@ export class Heap<X> {
         return;
     }
 
-    alloc(amt:number): Key {
-        if (amt <= 0) {
-            throw error(`cannot allocate ${amt} entries`);
-        }
-        let base = this.getNewBase();
-        console.log(this.storage);
-        this.storage.set(base, new Array(amt));
-        console.log(this.storage);
+    report() {
 
         let totalLength = 0;
         for (let key of this.storage.keys()) {
@@ -81,7 +78,19 @@ export class Heap<X> {
             }
         }
 
-        console.log(`asked to alloc ${amt}, after which our heap contains ${totalLength} items.`);
+        console.log(`our heap contains ${totalLength} items.`);
+
+    }
+
+    alloc(amt:number): Key {
+        if (amt <= 0) {
+            throw error(`cannot allocate ${amt} entries`);
+        }
+        let base = this.getNewBase();
+        this.storage.set(base, new Array(amt));
+
+        console.log(`asked to alloc ${amt} entries`);
+        this.report();
         
         return new Key(base, 0);
     }
@@ -349,13 +358,13 @@ type State = {
   specparent: State | null,
 }
 
-function isPointer(value: Value): value is Pointer {
-  return (value as Pointer).loc !== undefined;
+function isPointer(value: Value | undefined): value is Pointer {
+  return (value as Pointer)?.loc !== undefined;
 }
 
 function incrementCount(key: Key, state: State){
   let count = state.refCount.get(key.base)
-  if (count) {
+  if (count !== undefined) {
     state.refCount.set(key.base, count+1);
   } else {
     state.refCount.set(key.base, 1);
@@ -364,7 +373,7 @@ function incrementCount(key: Key, state: State){
 
 function decrementCount(key: Key, state: State){
   let count = state.refCount.get(key.base)
-  if (count) {
+  if (count !== undefined) {
     state.refCount.set(key.base, count-1);
   } else {
     throw error(`Tried to decrement reference count of uninitialized location base: ${key.base}.`)
@@ -373,7 +382,7 @@ function decrementCount(key: Key, state: State){
 
 function getCount(key: Key, state: State){
   let count = state.refCount.get(key.base)
-  if (count) {
+  if (count !== undefined) {
     return count
   } else {
     throw error(`Tried to return reference count of uninitialized location base: ${key.base}.`)
@@ -411,7 +420,7 @@ function collectGarbage(size: number, state: State){
 function freeAtEnd(state: State){
   while(true){
     let elem = state.toFree.shift();
-    if(elem){
+    if(elem !== undefined){
       collect(elem, state);
     }else{
       break;
@@ -496,6 +505,20 @@ function evalCall(instr: bril.Operation, state: State): Action {
     if (!typeCmp(instr.type, func.type)) {
       throw error(`type of value returned by function does not match declaration`);
     }
+
+
+    if (isPointer(retVal)) {
+        let oldMemEntry = state.env.get(instr.dest);
+        let newMemEntry = retVal as Pointer;
+        incrementCount(newMemEntry.loc, state)
+        if(oldMemEntry){
+            decrementCount((oldMemEntry as Pointer).loc, state)
+            if(getCount(((oldMemEntry as Pointer)).loc, state) == 0){
+                scheduleFree(((oldMemEntry as Pointer)).loc, state)
+            }
+        }
+    }
+    
     state.env.set(instr.dest, retVal);
   }
   return NEXT;
@@ -550,13 +573,13 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     let val = getArgument(instr, state.env, 0);
     let typ = instr.type
     if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
-      let oldMemEntry = state.env.get(instr.dest) as Pointer;
+      let oldMemEntry = state.env.get(instr.dest);
       let newMemEntry = getPtr(instr, state.env, 0);
       incrementCount(newMemEntry.loc, state)
       if(oldMemEntry){
-        decrementCount(oldMemEntry.loc, state)
-        if(getCount(oldMemEntry.loc, state) == 0){
-          scheduleFree(oldMemEntry.loc, state)
+        decrementCount((oldMemEntry as Pointer).loc, state)
+        if(getCount(((oldMemEntry as Pointer)).loc, state) == 0){
+          scheduleFree(((oldMemEntry as Pointer)).loc, state)
         }
       }
     }
@@ -725,23 +748,27 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   }
 
   case "ret": {
+    // console.log('---executing case ret');
     let args = instr.args || [];
-    console.log(`here are our temps: ${[...state.env.entries()]}`);
-    console.log(`here is our mem: ${[...state.heap.storage.entries()]}`);
+    // console.log(`here are our temps: ${[...state.env.entries()]}`);
+    // console.log(`here is our mem: ${[...state.heap.storage.entries()]}`);
     for (let tempName of state.env.keys()) {
-        console.log(`handling temp ${tempName}`);
         let tempVal = state.env.get(tempName);
         if (tempVal && isPointer(tempVal)) {
-            console.log(`decrementing count of ${tempName} -> ${tempVal.loc.base}`);
+            // console.log(`handling temp ${tempName}`);
             // incrementCount(tempVal.loc, state);
             // decrementCount(tempVal.loc, state);
             decrementCount(tempVal.loc, state);
-            if (getCount(tempVal.loc, state) == 0){
-                console.log(`scheduling free of ${tempVal.loc.base}`);
-                scheduleFree(tempVal.loc, state)
+            // console.log(`decrementing count of ${tempName} -> ${getCount(tempVal.loc, state)}`);
+            if (getCount(tempVal.loc, state) == 0 && !args.includes(tempName)){
+                // console.log(`scheduling free of ${tempVal.loc.base}`);
+                scheduleFree(tempVal.loc, state);
               }
         }
     }
+
+    // console.log(`returning from function`);
+    // state.heap.report();
 
     if (args.length == 0) {
       return {"action": "end", "ret": null};
@@ -917,6 +944,17 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 }
 
 function evalFunc(func: bril.Function, state: State): Value | null {
+
+    // console.log('---starting function eval')
+  if(func.args !== undefined){
+    for(let arg of func.args){
+        let val = state.env.get(arg.name);
+        if(isPointer(val)){
+            let ptr = val as Pointer;
+            incrementCount(ptr.loc, state);
+        }
+    }
+  }
   for (let i = 0; i < func.instrs.length; ++i) {
     let line = func.instrs[i];
     if ('op' in line) {
@@ -990,6 +1028,24 @@ function evalFunc(func: bril.Function, state: State): Value | null {
   if (state.specparent) {
     throw error(`implicit return in speculative state`);
   }
+
+  // insert here
+
+//   console.log('---executing end-of-fn return')
+
+  for (let tempName of state.env.keys()) {
+    let tempVal = state.env.get(tempName);
+    if (tempVal && isPointer(tempVal)) {
+        // console.log(`handling temp ${tempName}`);
+        decrementCount(tempVal.loc, state);
+        // console.log(`decrementing count of ${tempName} -> ${getCount(tempVal.loc, state)}`);
+        if (getCount(tempVal.loc, state) == 0){
+            // console.log(`scheduling free of ${tempVal.loc.base}`);
+            scheduleFree(tempVal.loc, state);
+          }
+    }
+}
+
   return null;
 }
 
@@ -1090,6 +1146,7 @@ function evalProg(prog: bril.Program) {
   freeAtEnd(state);
 
   if (!heap.isEmpty()) {
+    console.log(`Heap has ${heap.size()} things`);
     throw error(`Some memory locations have not been freed by end of execution.`);
   }
 
