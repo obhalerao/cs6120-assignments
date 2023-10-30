@@ -68,36 +68,19 @@ export class Heap<X> {
         return;
     }
 
-    report() {
-
-        let totalLength = 0;
-        for (let key of this.storage.keys()) {
-            let ans = this.storage.get(key)?.length;
-            if (ans) {
-                totalLength += ans;
-            }
-        }
-
-        console.log(`our heap contains ${totalLength} items.`);
-
-    }
-
     alloc(amt:number): Key {
         if (amt <= 0) {
             throw error(`cannot allocate ${amt} entries`);
         }
         let base = this.getNewBase();
         this.storage.set(base, new Array(amt));
-
-        console.log(`asked to alloc ${amt} entries`);
-        this.report();
         
         return new Key(base, 0);
     }
 
     getSize(base: number): number {
       let ans = this.storage.get(base)?.length;
-      if(ans){
+      if(ans !== undefined){
         return ans;
       } else {
         throw error(`Tried to get size allocation from illegal memory base: ${base}.`);
@@ -114,6 +97,10 @@ export class Heap<X> {
     }
 
     write(key: Key, val: X) {
+        // console.log(`Writing to ${key.base}`);
+        // this.storage.forEach((value: X[], key: number) => {
+        //   console.log(key, value);
+        // });
         let data = this.storage.get(key.base);
         if (data && data.length > key.offset && key.offset >= 0) {
             data[key.offset] = val;
@@ -123,6 +110,10 @@ export class Heap<X> {
     }
 
     read(key: Key): X {
+        // console.log(`Reading from ${key.base}`);
+        // this.storage.forEach((value: X[], key: number) => {
+        //   console.log(key, value);
+        // });
         let data = this.storage.get(key.base);
         if (data && data.length > key.offset && key.offset >= 0) {
             return data[key.offset];
@@ -409,7 +400,7 @@ function collectGarbage(size: number, state: State){
   let tot = 0;
   while(tot < size){
     let elem = state.toFree.shift();
-    if(elem){
+    if(elem !== undefined){
       tot += collect(elem, state);
     }else{
       break;
@@ -418,6 +409,9 @@ function collectGarbage(size: number, state: State){
 }
 
 function freeAtEnd(state: State){
+  // console.log("entering freeAtEnd");
+  // console.log(state.toFree);
+  // console.log(state.refCount);
   while(true){
     let elem = state.toFree.shift();
     if(elem !== undefined){
@@ -511,7 +505,7 @@ function evalCall(instr: bril.Operation, state: State): Action {
         let oldMemEntry = state.env.get(instr.dest);
         let newMemEntry = retVal as Pointer;
         incrementCount(newMemEntry.loc, state)
-        if(oldMemEntry){
+        if(oldMemEntry !== undefined){
             decrementCount((oldMemEntry as Pointer).loc, state)
             if(getCount(((oldMemEntry as Pointer)).loc, state) == 0){
                 scheduleFree(((oldMemEntry as Pointer)).loc, state)
@@ -576,7 +570,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
       let oldMemEntry = state.env.get(instr.dest);
       let newMemEntry = getPtr(instr, state.env, 0);
       incrementCount(newMemEntry.loc, state)
-      if(oldMemEntry){
+      if(oldMemEntry !== undefined){
         decrementCount((oldMemEntry as Pointer).loc, state)
         if(getCount(((oldMemEntry as Pointer)).loc, state) == 0){
           scheduleFree(((oldMemEntry as Pointer)).loc, state)
@@ -749,9 +743,20 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   case "ret": {
     // console.log('---executing case ret');
+    // console.log(`reference counts`)
+    // console.log(state.refCount);
+    // console.log(`to free list`)
+    // console.log(state.toFree)
     let args = instr.args || [];
     // console.log(`here are our temps: ${[...state.env.entries()]}`);
     // console.log(`here is our mem: ${[...state.heap.storage.entries()]}`);
+    let baseRet = -1;
+    if(args.length > 0){
+      let tempVal = state.env.get(args[0]);
+      if(tempVal && isPointer(tempVal)){
+        baseRet = tempVal.loc.base
+      }
+    }
     for (let tempName of state.env.keys()) {
         let tempVal = state.env.get(tempName);
         if (tempVal && isPointer(tempVal)) {
@@ -760,12 +765,16 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
             // decrementCount(tempVal.loc, state);
             decrementCount(tempVal.loc, state);
             // console.log(`decrementing count of ${tempName} -> ${getCount(tempVal.loc, state)}`);
-            if (getCount(tempVal.loc, state) == 0 && !args.includes(tempName)){
+            if (getCount(tempVal.loc, state) == 0 && tempVal.loc.base != baseRet){
                 // console.log(`scheduling free of ${tempVal.loc.base}`);
                 scheduleFree(tempVal.loc, state);
               }
         }
     }
+    // console.log(`new reference counts`)
+    // console.log(state.refCount);
+    // console.log(`new to free list`)
+    // console.log(state.toFree)
 
     // console.log(`returning from function`);
     // state.heap.report();
@@ -829,12 +838,13 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     let val = getInt(instr, state.env, 1)
     let typ = instr.type
     if(typeof typ === "object" && typ.hasOwnProperty('ptr')){
-      let oldMemEntry = state.env.get(instr.dest) as Pointer
-      incrementCount(ptr.loc, state)
-      if(oldMemEntry){
-        decrementCount(oldMemEntry.loc, state)
-        if(getCount(oldMemEntry.loc, state) == 0){
-          scheduleFree(oldMemEntry.loc, state)
+      let oldMemEntry = state.env.get(instr.dest);
+      let newMemEntry = getPtr(instr, state.env, 0);
+      incrementCount(newMemEntry.loc, state)
+      if(oldMemEntry !== undefined){
+        decrementCount((oldMemEntry as Pointer).loc, state)
+        if(getCount(((oldMemEntry as Pointer)).loc, state) == 0){
+          scheduleFree(((oldMemEntry as Pointer)).loc, state)
         }
       }
     }
@@ -945,7 +955,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
 function evalFunc(func: bril.Function, state: State): Value | null {
 
-    // console.log('---starting function eval')
+  // console.log(`---starting function eval ${func.name}`)
   if(func.args !== undefined){
     for(let arg of func.args){
         let val = state.env.get(arg.name);
@@ -965,6 +975,7 @@ function evalFunc(func: bril.Function, state: State): Value | null {
       switch (action.action) {
       case 'end': {
         // Return from this function.
+        // console.log(`returning from ${func.name}`)
         return action.ret;
       }
       case 'speculate': {
@@ -1031,7 +1042,13 @@ function evalFunc(func: bril.Function, state: State): Value | null {
 
   // insert here
 
-//   console.log('---executing end-of-fn return')
+  // console.log('---executing end-of-fn return')
+
+  // console.log(`reference counts`)
+  // console.log(state.refCount);
+
+  // console.log(`to free list`)
+  // console.log(state.toFree)
 
   for (let tempName of state.env.keys()) {
     let tempVal = state.env.get(tempName);
@@ -1046,6 +1063,11 @@ function evalFunc(func: bril.Function, state: State): Value | null {
     }
 }
 
+// console.log(`new reference counts:`);
+// console.log(state.refCount);
+// console.log(`new to free list`)
+// console.log(state.toFree)
+// console.log(`returning from ${func.name}`);
   return null;
 }
 
@@ -1146,7 +1168,7 @@ function evalProg(prog: bril.Program) {
   freeAtEnd(state);
 
   if (!heap.isEmpty()) {
-    console.log(`Heap has ${heap.size()} things`);
+    // console.log(`Heap has ${heap.size()} things`);
     throw error(`Some memory locations have not been freed by end of execution.`);
   }
 
