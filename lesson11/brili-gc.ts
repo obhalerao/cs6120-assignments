@@ -43,7 +43,7 @@ export class Key {
  */
 export class Heap<X> {
 
-    private readonly storage: Map<number, X[]>;
+    public readonly storage: Map<number, X[]>;
     
     constructor() {
         this.storage = new Map();
@@ -69,7 +69,20 @@ export class Heap<X> {
             throw error(`cannot allocate ${amt} entries`);
         }
         let base = this.getNewBase();
+        console.log(this.storage);
         this.storage.set(base, new Array(amt));
+        console.log(this.storage);
+
+        let totalLength = 0;
+        for (let key of this.storage.keys()) {
+            let ans = this.storage.get(key)?.length;
+            if (ans) {
+                totalLength += ans;
+            }
+        }
+
+        console.log(`asked to alloc ${amt}, after which our heap contains ${totalLength} items.`);
+        
         return new Key(base, 0);
     }
 
@@ -713,6 +726,23 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   case "ret": {
     let args = instr.args || [];
+    console.log(`here are our temps: ${[...state.env.entries()]}`);
+    console.log(`here is our mem: ${[...state.heap.storage.entries()]}`);
+    for (let tempName of state.env.keys()) {
+        console.log(`handling temp ${tempName}`);
+        let tempVal = state.env.get(tempName);
+        if (tempVal && isPointer(tempVal)) {
+            console.log(`decrementing count of ${tempName} -> ${tempVal.loc.base}`);
+            // incrementCount(tempVal.loc, state);
+            // decrementCount(tempVal.loc, state);
+            decrementCount(tempVal.loc, state);
+            if (getCount(tempVal.loc, state) == 0){
+                console.log(`scheduling free of ${tempVal.loc.base}`);
+                scheduleFree(tempVal.loc, state)
+              }
+        }
+    }
+
     if (args.length == 0) {
       return {"action": "end", "ret": null};
     } else if (args.length == 1) {
@@ -746,7 +776,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   case "free": {
     let val = getPtr(instr, state.env, 0);
-    state.heap.free(val.loc);
+    // state.heap.free(val.loc);
     return NEXT;
   }
 
