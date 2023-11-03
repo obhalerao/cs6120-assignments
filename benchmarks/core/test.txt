@@ -1,0 +1,1 @@
+[{"args":["pp","n"],"dest":"cond","op":"le","type":"bool"},{"args":["cond"],"labels":["for.set.body","for.set.end"],"op":"br"},{"args":["n","one"],"dest":"final_if_cond","op":"gt","type":"bool"},{"args":["final_if_cond"],"labels":["final_if_label","final_else_label"],"op":"br"},{"args":["result","n"],"dest":"resdiv","op":"div","type":"int"}]
