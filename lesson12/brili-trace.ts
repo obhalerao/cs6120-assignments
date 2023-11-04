@@ -333,6 +333,8 @@ type State = {
 
 let num_traces = 0;
 
+
+
 function writeTrace(filename: String, funcName: String, state: State){
   console.log("writing trace now");
   let finalTrace = {'function' : funcName, 'trace' : state.currentTrace};
@@ -628,9 +630,12 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   case "br": {
     let cond = getBool(instr, state.env, 0);
+    let lastInstr = state.currentTrace[state.currentTrace.length-1];
     if (cond) {
+      lastInstr['taken'] = true;
       return {"action": "jump", "label": getLabel(instr, 0)};
     } else {
+      lastInstr['taken'] = false;
       return {"action": "jump", "label": getLabel(instr, 1)};
     }
   }
@@ -828,7 +833,7 @@ function evalFunc(func: bril.Function, state: State): Value | null {
           state.currentTrace.pop();
           if(state.currentTrace.length > 0){
             // write the current trace
-            writeTrace(`./test_${num_traces}.json`, func.name, state);
+            writeTrace(`./trace_${num_traces}.json`, func.name, state);
             state.currentTrace = []
           }
           state.isTracing = true;
@@ -905,7 +910,7 @@ function evalFunc(func: bril.Function, state: State): Value | null {
         state.currentTrace.pop();
         if(state.currentTrace.length > 0){
           // write the current trace
-          writeTrace(`./test_${num_traces}.json`, func.name, state);
+          writeTrace(`./trace_${num_traces}.json`, func.name, state);
           state.currentTrace = []
         }
         state.isTracing = true;
