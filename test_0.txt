@@ -1,0 +1,1 @@
+[{"dest":"a","op":"const","type":"int","value":4,"index":0},{"dest":"b","op":"const","type":"int","value":5,"index":1},{"args":["a","b"],"dest":"c","op":"add","type":"int","index":2}]

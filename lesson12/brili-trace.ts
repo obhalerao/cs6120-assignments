@@ -331,11 +331,12 @@ type State = {
   currentTrace: Array<object>,
 }
 
-let TRACE_LIMIT = 5;
+let num_traces = 0;
 
 function writeTrace(filename: String, state: State){
-  fs.writeFileSync(filename, state.currentTrace.toString());
-  state.currentTrace = [];
+  console.log("writing trace now")
+  fs.writeFileSync(filename, JSON.stringify(state.currentTrace));
+  num_traces++;
 }
 
 /**
@@ -384,9 +385,6 @@ function evalCall(instr: bril.Operation, state: State): Action {
     currentTrace: [],
   }
 
-  // write the current trace
-  writeTrace('./test.txt', state);
-
   let retVal = evalFunc(func, newState);
   state.icount = newState.icount;
 
@@ -432,10 +430,6 @@ function evalCall(instr: bril.Operation, state: State): Action {
  */
 function evalInstr(instr: bril.Instruction, state: State): Action {
   state.icount += BigInt(1);
-  state.currentTrace.push(instr);
-  if(state.currentTrace.length == TRACE_LIMIT){
-    writeTrace("./test.txt", state);
-  }
 
   // Check that we have the right number of arguments.
   if (instr.op !== "const") {
@@ -615,6 +609,8 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   }
 
   case "print": {
+    // abort tracing
+    state.isTracing = false;
     let args = instr.args || [];
     let values = args.map(function (i) {
       let val = get(state.env, i);
@@ -639,6 +635,8 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   }
 
   case "ret": {
+    // abort tracing
+    state.isTracing = false;
     let args = instr.args || [];
     if (args.length == 0) {
       return {"action": "end", "ret": null};
@@ -655,10 +653,14 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   }
 
   case "call": {
+    // abort tracing
+    state.isTracing = false;
     return evalCall(instr, state);
   }
 
   case "alloc": {
+    // abort tracing
+    state.isTracing = false;
     let amt = getInt(instr, state.env, 0);
     let typ = instr.type;
     if (!(typeof typ === "object" && typ.hasOwnProperty('ptr'))) {
@@ -670,18 +672,24 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   }
 
   case "free": {
+    // abort tracing
+    state.isTracing = false;
     let val = getPtr(instr, state.env, 0);
     state.heap.free(val.loc);
     return NEXT;
   }
 
   case "store": {
+    // abort tracing
+    state.isTracing = false;
     let target = getPtr(instr, state.env, 0);
     state.heap.write(target.loc, getArgument(instr, state.env, 1, target.type));
     return NEXT;
   }
 
   case "load": {
+    // abort tracing
+    state.isTracing = false;
     let ptr = getPtr(instr, state.env, 0);
     let val = state.heap.read(ptr.loc);
     if (val === undefined || val === null) {
@@ -804,6 +812,9 @@ function evalFunc(func: bril.Function, state: State): Value | null {
     let line = func.instrs[i];
     if ('op' in line) {
       // Run an instruction.
+      let lineCopy = {...line};
+      lineCopy['index'] = i;
+      state.currentTrace.push(lineCopy);
       let action = evalInstr(line, state);
 
       // Take the prescribed action.
@@ -848,8 +859,12 @@ function evalFunc(func: bril.Function, state: State): Value | null {
         unreachable(action);
         throw error(`unhandled action ${(action as any).action}`);
       }
+
       // Move to a label.
       if ('label' in action) {
+        // check for backedges.
+        let oldi = i;
+
         // Search for the label and transfer control.
         for (i = 0; i < func.instrs.length; ++i) {
           let sLine = func.instrs[i];
@@ -861,12 +876,33 @@ function evalFunc(func: bril.Function, state: State): Value | null {
         if (i === func.instrs.length) {
           throw error(`label ${action.label} not found`);
         }
+
+        if(state.currentTrace.length > 0 && state.currentTrace[state.currentTrace.length-1]['index'] == oldi){
+          if(i < oldi){
+            // backedge!!!
+            // stop tracing when a backedge is hit.
+            state.isTracing = false;
+          }
+        }
+      }
+      // check if we should still be tracing.
+      // if not, delete the last instruction and save the remainder to a file.
+      
+      if(!state.isTracing){
+        state.currentTrace.pop();
+        if(state.currentTrace.length > 0){
+          // write the current trace
+          writeTrace(`./test_${num_traces}.txt`, state);
+          state.currentTrace = []
+        }
+        state.isTracing = true;
       }
     } else if ('label' in line) {
       // Update CFG tracking for SSA phi nodes.
       state.lastlabel = state.curlabel;
       state.curlabel = line.label;
     }
+
   }
 
   // Reached the end of the function without hitting `ret`.
