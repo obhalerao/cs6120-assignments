@@ -333,9 +333,10 @@ type State = {
 
 let num_traces = 0;
 
-function writeTrace(filename: String, state: State){
-  console.log("writing trace now")
-  fs.writeFileSync(filename, JSON.stringify(state.currentTrace));
+function writeTrace(filename: String, funcName: String, state: State){
+  console.log("writing trace now");
+  let finalTrace = {'function' : funcName, 'trace' : state.currentTrace};
+  fs.writeFileSync(filename, JSON.stringify(finalTrace));
   num_traces++;
 }
 
@@ -381,7 +382,7 @@ function evalCall(instr: bril.Operation, state: State): Action {
     lastlabel: null,
     curlabel: null,
     specparent: null,  // Speculation not allowed.
-    isTracing: state.isTracing,
+    isTracing: true,
     currentTrace: [],
   }
 
@@ -820,7 +821,19 @@ function evalFunc(func: bril.Function, state: State): Value | null {
       // Take the prescribed action.
       switch (action.action) {
       case 'end': {
-        // Return from this function.
+        // Return from this function. 
+        // But write the trace to a file if it exists.
+
+        if(!state.isTracing){
+          state.currentTrace.pop();
+          if(state.currentTrace.length > 0){
+            // write the current trace
+            writeTrace(`./test_${num_traces}.json`, func.name, state);
+            state.currentTrace = []
+          }
+          state.isTracing = true;
+        }
+
         return action.ret;
       }
       case 'speculate': {
@@ -892,7 +905,7 @@ function evalFunc(func: bril.Function, state: State): Value | null {
         state.currentTrace.pop();
         if(state.currentTrace.length > 0){
           // write the current trace
-          writeTrace(`./test_${num_traces}.txt`, state);
+          writeTrace(`./test_${num_traces}.json`, func.name, state);
           state.currentTrace = []
         }
         state.isTracing = true;
