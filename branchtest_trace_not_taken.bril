@@ -1,0 +1,25 @@
+@main(n: int) {
+  speculate;
+  a: int = const 2;
+  b: int = const 5;
+  c: bool = gt n b;
+  anti_clobber_not_c: bool = not c;
+  guard anti_clobber_not_c .trace_0_failure;
+  d: int = sub n a;
+  commit;
+  jmp .trace_0_success;
+.trace_0_failure:
+  a: int = const 2;
+  b: int = const 5;
+  c: bool = gt n b;
+  br c .greater .less;
+.greater:
+  d: int = mul n b;
+  print d;
+  ret;
+.less:
+  d: int = sub n a;
+.trace_0_success:
+  print d;
+  ret;
+}

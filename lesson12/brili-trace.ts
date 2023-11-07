@@ -336,7 +336,6 @@ let num_traces = 0;
 
 
 function writeTrace(filename: String, funcName: String, state: State){
-  console.log("writing trace now");
   let finalTrace = {'function' : funcName, 'trace' : state.currentTrace};
   fs.writeFileSync(filename, JSON.stringify(finalTrace));
   num_traces++;

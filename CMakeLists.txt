@@ -38,6 +38,7 @@ add_executable(l3_lvn "${PROJECT_SOURCE_DIR}/src/main/lesson3_lvn.cpp")
 add_executable(l4_dataflow "${PROJECT_SOURCE_DIR}/src/main/lesson4.cpp")
 add_executable(l5_global "${PROJECT_SOURCE_DIR}/lesson5/main.cpp")
 add_executable(l6_ssa "${PROJECT_SOURCE_DIR}/lesson6/main.cpp")
+add_executable(l12_jit "${PROJECT_SOURCE_DIR}/lesson12/stitch_traces.cpp")
 
 add_llvm_pass_plugin(L7Pass
     # List your source files here.
@@ -54,3 +55,5 @@ target_link_libraries(l3_tdce l3_helpers)
 target_link_libraries(dataflow_analysis cfg cfg_utils)
 target_link_libraries(l4_dataflow -fsanitize=address dataflow_analysis cfg cfg_utils)
 target_link_libraries(l6_ssa cfg cfg_utils)
+target_link_libraries(l12_jit cfg cfg_utils)
+

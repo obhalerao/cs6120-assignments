@@ -1,0 +1,23 @@
+@main {
+  speculate;
+  a: int = const 4;
+  b: int = const 5;
+  c: int = add a b;
+  commit;
+  jmp .trace_1_success;
+.trace_1_failure:
+  a: int = const 4;
+  b: int = const 5;
+  c: int = add a b;
+.trace_1_success:
+  print c;
+  speculate;
+  d: int = mul a b;
+  commit;
+  jmp .trace_0_success;
+.trace_0_failure:
+  d: int = mul a b;
+.trace_0_success:
+  print d;
+  ret;
+}

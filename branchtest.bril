@@ -1,0 +1,14 @@
+@main(n: int){
+  a : int = const 2;
+  b : int = const 5;
+  c : bool = gt n b;
+  br c .greater .less;
+.greater:
+  d : int = mul n b;
+  print d;
+  ret;
+.less:
+  d : int = sub n a;
+  print d;
+  ret;
+}

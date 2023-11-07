@@ -1,0 +1,17 @@
+@main {
+  speculate;
+  a: int = const 4;
+  b: int = const 5;
+  c: int = add a b;
+  d: int = mul c b;
+  commit;
+  jmp .trace_0_success;
+.trace_0_failure:
+  a: int = const 4;
+  b: int = const 5;
+  c: int = add a b;
+  d: int = mul c b;
+.trace_0_success:
+  print d;
+  ret;
+}
