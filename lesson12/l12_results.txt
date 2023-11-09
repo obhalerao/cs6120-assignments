@@ -1,0 +1,26 @@
+catalan
+given input: 10
+baseline: 659378
+traced: 875891
+
+new input: 13
+baseline: 17803271
+traced: 23649122
+
+collatz
+given input: 7
+baseline: 169
+traced: 297
+
+new input: 31
+baseline: 1069
+traced: 1871
+
+primes-between
+given input: 50 100
+baseline: 6621
+traced: 6625
+
+new input: 24 124
+baseline: 13450
+traced: 13454
