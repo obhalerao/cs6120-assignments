@@ -332,6 +332,7 @@ type State = {
 }
 
 let num_traces = 0;
+let seen_branch = false;
 
 
 
@@ -341,6 +342,18 @@ function writeTrace(filename: String, funcName: String, state: State){
     fs.writeFileSync(filename, JSON.stringify(finalTrace));
   }
   num_traces++;
+  if(!seen_branch && !containsBranch(state.currentTrace)){
+    num_traces--
+  }else{
+    seen_branch = true;
+  }
+}
+
+function containsBranch(trace: object[]){
+  for(let i = 0; i < trace.length; i++){
+    if('op' in trace[i] && trace[i]['op'] == 'br') return true;
+  }
+  return false;
 }
 
 /**

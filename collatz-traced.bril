@@ -1,0 +1,40 @@
+@main(x: int) {
+  one: int = const 1;
+  two: int = const 2;
+  three: int = const 3;
+  jmp .print;
+.cond:
+  speculate;
+  eq_one: bool = eq x one;
+  anti_clobber_not_eq_one: bool = not eq_one;
+  guard anti_clobber_not_eq_one .trace_0_failure;
+  half: int = div x two;
+  doublehalf: int = mul half two;
+  even: bool = eq x doublehalf;
+  anti_clobber_not_even: bool = not even;
+  guard anti_clobber_not_even .trace_0_failure;
+  x: int = mul x three;
+  x: int = add x one;
+  commit;
+  jmp .trace_0_success;
+.trace_0_failure:
+  eq_one: bool = eq x one;
+  br eq_one .end .loop;
+.loop:
+  half: int = div x two;
+  doublehalf: int = mul half two;
+  even: bool = eq x doublehalf;
+  br even .even .odd;
+.even:
+  x: int = div x two;
+  jmp .print;
+.odd:
+  x: int = mul x three;
+  x: int = add x one;
+.trace_0_success:
+.print:
+  print x;
+  jmp .cond;
+.end:
+  ret;
+}
