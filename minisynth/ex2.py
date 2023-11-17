@@ -2,6 +2,10 @@ import lark
 import z3
 import sys
 
+from z3 import UDiv, URem, LShR
+
+WIDTH = 32
+
 # A language based on a Lark example from:
 # https://github.com/lark-parser/lark/wiki/Examples
 GRAMMAR = """
@@ -48,16 +52,16 @@ def interp(tree, lookup, use_z3=False):
         elif op == 'mul':
             return lhs * rhs
         elif op == 'div':
-            return lhs / rhs
+            return UDiv(lhs, rhs) if use_z3 else lhs / rhs
         elif op == 'shl':
             return lhs << rhs
         elif op == 'shr':
-            return lhs >> rhs
+            return LShR(lhs, rhs) if use_z3 else lhs >> rhs
     elif op == 'neg':  # Negation.
         sub = interp(tree.children[0], lookup, z3)
         return -sub
     elif op == 'num':  # Literal number.
-        return int(tree.children[0]) if not use_z3 else z3.BitVecVal(tree.children[0], 8)
+        return int(tree.children[0]) if not use_z3 else z3.BitVecVal(tree.children[0], WIDTH)
     elif op == 'var':  # Variable lookup.
         return lookup(tree.children[0])
     elif op == 'if':  # Conditional.
@@ -124,7 +128,7 @@ def z3_expr(tree, vars=None):
 
     Return the Z3 expression and a dict mapping variable names to all
     free variables occurring in the expression. All variables are
-    represented as BitVecs of width 8. Optionally, `vars` can be an
+    represented as BitVecs of width WIDTH. Optionally, `vars` can be an
     initial set of variables.
     """
 
@@ -135,7 +139,7 @@ def z3_expr(tree, vars=None):
         if name in vars:
             return vars[name]
         else:
-            v = z3.BitVec(name, 8)
+            v = z3.BitVec(name, WIDTH)
             vars[name] = v
             return v
 
